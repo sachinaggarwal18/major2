@@ -1,0 +1,74 @@
+.prescription-form {
+    max-width: 900px;
+    margin: 50px auto;
+    background-color: #ffffff;
+    padding: 40px 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+  }
+  
+  .prescription-form h2 {
+    text-align: center;
+    color: #004080;
+    font-size: 32px;
+    margin-bottom: 30px;
+  }
+  
+  .prescription-form form {
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .prescription-form input,
+  .prescription-form textarea {
+    width: 100%;
+    margin-bottom: 20px;
+    padding: 14px;
+    border-radius: 8px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+  }
+  
+  .prescription-form textarea {
+    resize: vertical;
+    min-height: 120px;
+  }
+  
+  .prescription-form button {
+    background-color: #28a745;
+    color: white;
+    padding: 16px;
+    border: none;
+    border-radius: 8px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    margin-top: 10px;
+  }
+  
+  .prescription-form button:hover {
+    background-color: #218838;
+  }
+  
+  /* Styling for + Add Medicine button */
+  .prescription-form button[type="button"] {
+    background-color: #007bff;
+    padding: 12px;
+    font-size: 16px;
+  }
+  
+  .prescription-form button[type="button"]:hover {
+    background-color: #0056b3;
+  }
+  
+  /* Styling individual medicine input pairs */
+  .prescription-form div {
+    display: flex;
+    gap: 20px;
+    margin-bottom: 15px;
+  }
+  
+  .prescription-form div input {
+    flex: 1;
+  }
+  
