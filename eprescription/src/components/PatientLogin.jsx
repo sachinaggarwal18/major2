@@ -1,5 +1,6 @@
 import { useState } from "react";
 import "../styles/Auth.css";
+import { useNavigate } from "react-router-dom";
 
 function PatientLogin() {
   const [formData, setFormData] = useState({
@@ -14,6 +15,8 @@ function PatientLogin() {
     });
   };
 
+  const navigate = useNavigate();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -26,6 +29,7 @@ function PatientLogin() {
 
       const data = await res.json();
       if (res.ok) {
+        navigate("/patient-dashboard");
         alert("Patient logged in successfully!");
         console.log(data);
       } else {
