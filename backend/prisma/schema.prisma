@@ -1,0 +1,69 @@
+// This is your Prisma schema file
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model Doctor {
+  id                 String         @id @default(uuid())
+  name               String
+  specialization     String
+  email              String         @unique
+  phoneNumber        String         @unique
+  password           String
+  licenseNumber      String         @unique
+  hospitalAffiliation String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  prescriptions      Prescription[]
+}
+
+model Patient {
+  id             String         @id @default(uuid())
+  name           String
+  age            Int
+  gender         Gender
+  email          String         @unique
+  password       String
+  phoneNumber    String         @unique
+  address        String
+  medicalHistory String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  prescriptions  Prescription[]
+}
+
+model Prescription {
+  id          String       @id @default(uuid())
+  patientId   String
+  doctorId    String
+  date        DateTime     @default(now())
+  diagnosis   String
+  notes       String?
+  medications Medication[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  patient     Patient      @relation(fields: [patientId], references: [id])
+  doctor      Doctor       @relation(fields: [doctorId], references: [id])
+}
+
+model Medication {
+  id             String       @id @default(uuid())
+  name           String
+  dosage         String
+  frequency      String
+  duration       String
+  prescriptionId String
+  prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+}
+
+enum Gender {
+  Male
+  Female
+  Other
+}

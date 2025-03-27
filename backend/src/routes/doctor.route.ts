@@ -2,9 +2,9 @@ import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
-import Doctor from '../models/doctor.model';
 import { authenticate, isDoctor } from '../middleware/auth';
 import { AuthRequest, DoctorSignupRequest, LoginRequest } from '../types/express';
+import prisma from '../utils/prisma';
 
 const router = express.Router();
 
@@ -41,8 +41,13 @@ router.post(
     } = req.body;
 
     try {
-      const existing = await Doctor.findOne({
-        $or: [{ email }, { phoneNumber }],
+      const existing = await prisma.doctor.findFirst({
+        where: {
+          OR: [
+            { email },
+            { phoneNumber }
+          ]
+        }
       });
 
       if (existing) {
@@ -57,14 +62,16 @@ router.post(
         parallelism: 1
       });
 
-      const newDoctor = await Doctor.create({
-        name,
-        email,
-        password: hashedPassword,
-        specialization,
-        phoneNumber,
-        licenseNumber,
-        hospitalAffiliation
+      const newDoctor = await prisma.doctor.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          specialization,
+          phoneNumber,
+          licenseNumber,
+          hospitalAffiliation
+        }
       });
 
       const jwtSecret = process.env.JWT_SECRET;
@@ -73,7 +80,7 @@ router.post(
       }
 
       const token = jwt.sign(
-        { id: newDoctor._id, email: newDoctor.email, role: 'doctor' },
+        { id: newDoctor.id, email: newDoctor.email, role: 'doctor' },
         jwtSecret,
         { expiresIn: '1h' }
       );
@@ -105,7 +112,9 @@ router.post(
     const { email, password } = req.body;
 
     try {
-      const doctor = await Doctor.findOne({ email });
+      const doctor = await prisma.doctor.findUnique({
+        where: { email }
+      });
       
       if (!doctor) {
         res.status(400).json({ message: 'Invalid email or password' });
@@ -125,7 +134,7 @@ router.post(
       }
 
       const token = jwt.sign(
-        { id: doctor._id, email: doctor.email, role: 'doctor' },
+        { id: doctor.id, email: doctor.email, role: 'doctor' },
         jwtSecret,
         { expiresIn: '1h' }
       );
@@ -146,7 +155,20 @@ router.get('/profile', authenticate, isDoctor, async (req: AuthRequest, res: Res
       return;
     }
 
-    const doctor = await Doctor.findById(req.user.id).select('-password');
+    const doctor = await prisma.doctor.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        specialization: true,
+        phoneNumber: true,
+        licenseNumber: true,
+        hospitalAffiliation: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
     
     if (!doctor) {
       res.status(404).json({ message: 'Doctor not found' });

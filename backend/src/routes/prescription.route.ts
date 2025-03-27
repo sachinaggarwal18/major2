@@ -1,12 +1,8 @@
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import Prescription from '../models/prescription.model';
 import { authenticate, isDoctor } from '../middleware/auth';
 import { AuthRequest, PrescriptionCreateRequest } from '../types/express';
-import Patient from '../models/patient.model';
-import Doctor from '../models/doctor.model';
-import { IDoctor, IPatient } from '../types/models';
-import mongoose from 'mongoose';
+import prisma from '../utils/prisma';
 
 const router = express.Router();
 
@@ -41,8 +37,10 @@ router.post(
 
     try {
       // Validate that both patient and doctor exist
-      const patientExists = await Patient.exists({ _id: patientId });
-      const doctorExists = await Doctor.exists({ _id: doctorId });
+      const [patientExists, doctorExists] = await Promise.all([
+        prisma.patient.findUnique({ where: { id: patientId } }),
+        prisma.doctor.findUnique({ where: { id: doctorId } })
+      ]);
 
       if (!patientExists) {
         res.status(404).json({ message: 'Patient not found' });
@@ -54,18 +52,27 @@ router.post(
         return;
       }
 
-      const newPrescription = await Prescription.create({
-        patientId,
-        doctorId,
-        date: date || new Date(),
-        diagnosis,
-        medications,
-        notes
+      const newPrescription = await prisma.prescription.create({
+        data: {
+          patientId,
+          doctorId,
+          date: date || new Date(),
+          diagnosis,
+          notes,
+          medications: {
+            create: medications.map(med => ({
+              name: med.name,
+              dosage: med.dosage,
+              frequency: med.frequency,
+              duration: med.duration
+            }))
+          }
+        }
       });
 
       res.status(201).json({
         message: 'Prescription created successfully',
-        prescriptionId: newPrescription._id
+        prescriptionId: newPrescription.id
       });
     } catch (error) {
       console.error('Error creating prescription:', error);
@@ -77,7 +84,6 @@ router.post(
 // ==================== Get All Prescriptions ====================
 router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    // For security, limit access based on the user's role
     const userId = req.user?.id;
     const userRole = req.user?.role;
     
@@ -89,13 +95,33 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
     let prescriptions;
     
     if (userRole === 'doctor') {
-      prescriptions = await Prescription.find({ doctorId: userId })
-        .populate('patientId', 'name email')
-        .sort({ createdAt: -1 });
+      prescriptions = await prisma.prescription.findMany({
+        where: { doctorId: userId },
+        include: {
+          patient: {
+            select: {
+              name: true,
+              email: true
+            }
+          },
+          medications: true
+        },
+        orderBy: { createdAt: 'desc' }
+      });
     } else if (userRole === 'patient') {
-      prescriptions = await Prescription.find({ patientId: userId })
-        .populate('doctorId', 'name specialization')
-        .sort({ createdAt: -1 });
+      prescriptions = await prisma.prescription.findMany({
+        where: { patientId: userId },
+        include: {
+          doctor: {
+            select: {
+              name: true,
+              specialization: true
+            }
+          },
+          medications: true
+        },
+        orderBy: { createdAt: 'desc' }
+      });
     } else {
       res.status(403).json({ message: 'Insufficient permissions' });
       return;
@@ -111,9 +137,26 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
 // ==================== Get Prescription by ID ====================
 router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    const prescription = await Prescription.findById(req.params.id)
-      .populate('patientId', 'name email')
-      .populate('doctorId', 'name specialization');
+    const prescription = await prisma.prescription.findUnique({
+      where: { id: req.params.id },
+      include: {
+        patient: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        doctor: {
+          select: {
+            id: true,
+            name: true,
+            specialization: true
+          }
+        },
+        medications: true
+      }
+    });
       
     if (!prescription) {
       res.status(404).json({ message: 'Prescription not found' });
@@ -124,13 +167,9 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promis
     const userId = req.user?.id;
     const userRole = req.user?.role;
     
-    // Type assertion for populated fields
-    const doctorId = prescription.doctorId as mongoose.Types.DocumentArray<IDoctor> & { _id: mongoose.Types.ObjectId };
-    const patientId = prescription.patientId as mongoose.Types.DocumentArray<IPatient> & { _id: mongoose.Types.ObjectId };
-    
     const isAuthorized = 
-      (userRole === 'doctor' && doctorId._id.toString() === userId) || 
-      (userRole === 'patient' && patientId._id.toString() === userId);
+      (userRole === 'doctor' && prescription.doctorId === userId) || 
+      (userRole === 'patient' && prescription.patientId === userId);
       
     if (!isAuthorized) {
       res.status(403).json({ message: 'Not authorized to view this prescription' });

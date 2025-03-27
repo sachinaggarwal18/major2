@@ -2,9 +2,9 @@ import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
-import Patient from '../models/patient.model';
 import { authenticate, isPatient } from '../middleware/auth';
 import { AuthRequest, PatientSignupRequest, LoginRequest } from '../types/express';
+import prisma from '../utils/prisma';
 
 const router = express.Router();
 
@@ -21,7 +21,9 @@ router.post(
     body('phoneNumber')
       .isLength({ min: 10, max: 15 })
       .withMessage('Phone number must be valid'),
-    body('gender').notEmpty().withMessage('Gender is required'),
+    body('gender')
+      .isIn(['Male', 'Female', 'Other'])
+      .withMessage('Gender must be Male, Female, or Other'),
     body('address').trim().notEmpty().withMessage('Address is required'),
   ],
   async (req: Request<Record<string, never>, unknown, PatientSignupRequest>, res: Response): Promise<void> => {
@@ -35,8 +37,13 @@ router.post(
 
     try {
       // Check if patient already exists
-      const existing = await Patient.findOne({
-        $or: [{ email }, { phoneNumber }],
+      const existing = await prisma.patient.findFirst({
+        where: {
+          OR: [
+            { email },
+            { phoneNumber }
+          ]
+        }
       });
 
       if (existing) {
@@ -46,22 +53,24 @@ router.post(
 
       // Hash the password before saving
       const hashedPassword = await argon2.hash(password, {
-              type: argon2.argon2id,
-              memoryCost: 19456, // 19 MB
-              timeCost: 2,
-              parallelism: 1
+        type: argon2.argon2id,
+        memoryCost: 19456, // 19 MB
+        timeCost: 2,
+        parallelism: 1
       });
 
       // Save the patient with hashed password
-      const newPatient = await Patient.create({
-        name,
-        email,
-        password: hashedPassword,
-        age,
-        phoneNumber,
-        gender,
-        address,
-        medicalHistory,
+      const newPatient = await prisma.patient.create({
+        data: {
+          name,
+          email,
+          password: hashedPassword,
+          age,
+          phoneNumber,
+          gender: gender as 'Male' | 'Female' | 'Other',
+          address,
+          medicalHistory
+        }
       });
 
       // Generate JWT token
@@ -71,14 +80,12 @@ router.post(
       }
 
       const token = jwt.sign(
-        { id: newPatient._id, email: newPatient.email, role: 'patient' },
+        { id: newPatient.id, email: newPatient.email, role: 'patient' },
         jwtSecret,
         { expiresIn: '1h' }
       );
 
-      res
-        .status(201)
-        .json({ message: 'Patient registered successfully', token });
+      res.status(201).json({ message: 'Patient registered successfully', token });
     } catch (error) {
       console.error(error);
       res.status(500).json({ message: 'Server error' });
@@ -105,8 +112,9 @@ router.post(
     const { email, password } = req.body;
 
     try {
-      // Fetch patient and ensure password is selected if schema has select: false
-      const patient = await Patient.findOne({ email }).select('+password');
+      const patient = await prisma.patient.findUnique({
+        where: { email }
+      });
       
       if (!patient) {
         res.status(400).json({ message: 'Invalid email or password' });
@@ -114,7 +122,7 @@ router.post(
       }
 
       // Compare the plain password with the stored hashed password
-      const isMatch = await argon2.verify(password, patient.password);
+      const isMatch = await argon2.verify(patient.password, password);
       
       if (!isMatch) {
         res.status(400).json({ message: 'Invalid email or password' });
@@ -128,7 +136,7 @@ router.post(
       }
 
       const token = jwt.sign(
-        { id: patient._id, email: patient.email, role: 'patient' },
+        { id: patient.id, email: patient.email, role: 'patient' },
         jwtSecret,
         { expiresIn: '1h' }
       );
@@ -149,7 +157,21 @@ router.get('/profile', authenticate, isPatient, async (req: AuthRequest, res: Re
       return;
     }
 
-    const patient = await Patient.findById(req.user.id).select('-password');
+    const patient = await prisma.patient.findUnique({
+      where: { id: req.user.id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        age: true,
+        gender: true,
+        phoneNumber: true,
+        address: true,
+        medicalHistory: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
     
     if (!patient) {
       res.status(404).json({ message: 'Patient not found' });

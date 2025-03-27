@@ -1,20 +1,22 @@
-import mongoose from 'mongoose';
+import prisma from '../utils/prisma';
 
-export async function connectToDB(): Promise<typeof mongoose> {
-  const mongoUri = process.env.MONGO_URI;
-  
-  if (!mongoUri) {
-    throw new Error('MONGO_URI is not defined in the environment variables');
-  }
-  
+export async function connectToDB(): Promise<void> {
   try {
-    await mongoose.connect(mongoUri);
-    console.log('Connected to DB');
-    return mongoose;
+    await prisma.$connect();
+    console.log('Connected to PostgreSQL database');
   } catch (error: unknown) {
-    console.error('MongoDB connection error:', error instanceof Error ? error.message : 'Unknown error occurred');
+    console.error('Database connection error:', error instanceof Error ? error.message : 'Unknown error occurred');
     process.exit(1);
   }
 }
 
-export default connectToDB;
+export async function disconnectFromDB(): Promise<void> {
+  try {
+    await prisma.$disconnect();
+    console.log('Disconnected from PostgreSQL database');
+  } catch (error: unknown) {
+    console.error('Database disconnection error:', error instanceof Error ? error.message : 'Unknown error occurred');
+  }
+}
+
+export default { connectToDB, disconnectFromDB };
