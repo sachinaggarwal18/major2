@@ -1,3 +1,13 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* Tailwind CSS v4 directives */
+@import "tailwindcss/preflight";
+@import "tailwindcss/utilities";
+
+/* Global styles */
+:root {
+  --primary-color: #4c51bf;
+  --secondary-color: #6b7280;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}

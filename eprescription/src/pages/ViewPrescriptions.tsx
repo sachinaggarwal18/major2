@@ -1,6 +1,6 @@
 import { FC, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import "./ViewPrescriptions.css";
+import "../styles/ViewPrescriptions.css";
 import { prescriptionService } from "../services/api";
 import { Prescription } from "../types/models";
 
