@@ -1,0 +1,45 @@
+.view-prescription-container {
+  padding: 20px;
+  max-width: 900px;
+  margin: auto;
+}
+
+.search-bar {
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+  border: 1px solid #ccc;
+  border-radius: 5px;
+  font-size: 16px;
+}
+
+.prescription-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.prescription-card {
+  background-color: #f5f5f5;
+  border-left: 6px solid #4caf50;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.prescription-card h3 {
+  color: #333;
+}
+
+.medicine-section h4 {
+  margin-top: 10px;
+}
+
+.medicine-section ul {
+  list-style-type: disc;
+  padding-left: 20px;
+}
+
+.prescription-card p {
+  margin: 5px 0;
+}
