@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 
 export interface AppError extends Error {
   statusCode?: number;
-  errors?: any;
+  errors?: Record<string, unknown>;
   isOperational?: boolean;
 }
 
@@ -12,9 +12,9 @@ export interface AppError extends Error {
 export class ApplicationError extends Error implements AppError {
   statusCode: number;
   isOperational: boolean;
-  errors?: any;
+  errors?: Record<string, unknown>;
 
-  constructor(message: string, statusCode = 500, errors?: any) {
+  constructor(message: string, statusCode = 500, errors?: Record<string, unknown>) {
     super(message);
     this.statusCode = statusCode;
     this.isOperational = true;
@@ -32,9 +32,10 @@ export const errorHandler = (
   err: AppError,
   req: Request,
   res: Response,
-  next: NextFunction
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  _next: NextFunction
 ): void => {
-  const statusCode = err.statusCode || 500;
+  const statusCode = err.statusCode ?? 500;
   const message = err.message || 'Something went wrong';
   
   console.error(`[ERROR] ${statusCode} - ${message}`);
@@ -57,17 +58,20 @@ export const errorHandler = (
 export const notFoundHandler = (
   req: Request,
   res: Response,
-  next: NextFunction
+  _next: NextFunction
 ): void => {
   const err = new ApplicationError(`Not found - ${req.originalUrl}`, 404);
-  next(err);
+  _next(err);
 };
 
 /**
  * Async error handler wrapper
+ * @param fn The route handler function to wrap with error handling
  */
-export const asyncHandler = (fn: Function) => {
-  return (req: Request, res: Response, next: NextFunction): Promise<any> => {
+export const asyncHandler = (
+  fn: (req: Request, res: Response, next: NextFunction) => Promise<unknown>
+) => {
+  return (req: Request, res: Response, next: NextFunction): Promise<unknown> => {
     return Promise.resolve(fn(req, res, next)).catch(next);
   };
 };

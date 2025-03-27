@@ -1,5 +1,4 @@
 import { Request } from 'express';
-import { IPatient, IDoctor } from './models';
 
 export interface AuthRequest extends Request {
   user?: {

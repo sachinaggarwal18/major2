@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import bcrypt from 'bcrypt';
+import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import Doctor from '../models/doctor.model';
 import { authenticate, isDoctor } from '../middleware/auth';
@@ -23,7 +23,7 @@ router.post(
       .withMessage('Phone number must be valid'),
     body('licenseNumber').notEmpty().withMessage('License number is required'),
   ],
-  async (req: Request<{}, {}, DoctorSignupRequest>, res: Response): Promise<void> => {
+  async (req: Request<Record<string, never>, unknown, DoctorSignupRequest>, res: Response): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
@@ -50,7 +50,12 @@ router.post(
         return;
       }
 
-      const hashedPassword = await bcrypt.hash(password, 10);
+      const hashedPassword = await argon2.hash(password, {
+        type: argon2.argon2id,
+        memoryCost: 19456, // 19 MB
+        timeCost: 2,
+        parallelism: 1
+      });
 
       const newDoctor = await Doctor.create({
         name,
@@ -90,7 +95,7 @@ router.post(
       .isLength({ min: 5 })
       .withMessage('Password must be at least 5 characters'),
   ],
-  async (req: Request<{}, {}, LoginRequest>, res: Response): Promise<void> => {
+  async (req: Request<Record<string, never>, unknown, LoginRequest>, res: Response): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
@@ -107,7 +112,7 @@ router.post(
         return;
       }
 
-      const isMatch = await bcrypt.compare(password, doctor.password);
+      const isMatch = await argon2.verify(doctor.password, password);
       
       if (!isMatch) {
         res.status(400).json({ message: 'Invalid email or password' });
@@ -136,7 +141,7 @@ router.post(
 // ==================== Get Doctor Profile ====================
 router.get('/profile', authenticate, isDoctor, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
-    if (!req.user || !req.user.id) {
+    if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
       return;
     }

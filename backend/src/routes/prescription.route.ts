@@ -24,7 +24,7 @@ router.post(
     body('medications.*.frequency').notEmpty().withMessage('Medication frequency is required'),
     body('medications.*.duration').notEmpty().withMessage('Medication duration is required'),
   ],
-  async (req: Request<{}, {}, PrescriptionCreateRequest>, res: Response): Promise<void> => {
+  async (req: Request<Record<string, never>, unknown, PrescriptionCreateRequest>, res: Response): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
@@ -109,7 +109,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
 });
 
 // ==================== Get Prescription by ID ====================
-router.get('/:id', authenticate, async (req: Request<{ id: string }>, res: Response): Promise<void> => {
+router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
   try {
     const prescription = await Prescription.findById(req.params.id)
       .populate('patientId', 'name email')
@@ -121,12 +121,12 @@ router.get('/:id', authenticate, async (req: Request<{ id: string }>, res: Respo
     }
     
     // Check if the user is authorized to view this prescription
-    const userId = (req as AuthRequest).user?.id;
-    const userRole = (req as AuthRequest).user?.role;
+    const userId = req.user?.id;
+    const userRole = req.user?.role;
     
     // Type assertion for populated fields
-    const doctorId = (prescription.doctorId as unknown) as mongoose.Types.DocumentArray<IDoctor> & { _id: mongoose.Types.ObjectId };
-    const patientId = (prescription.patientId as unknown) as mongoose.Types.DocumentArray<IPatient> & { _id: mongoose.Types.ObjectId };
+    const doctorId = prescription.doctorId as mongoose.Types.DocumentArray<IDoctor> & { _id: mongoose.Types.ObjectId };
+    const patientId = prescription.patientId as mongoose.Types.DocumentArray<IPatient> & { _id: mongoose.Types.ObjectId };
     
     const isAuthorized = 
       (userRole === 'doctor' && doctorId._id.toString() === userId) || 
