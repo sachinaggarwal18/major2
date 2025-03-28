@@ -1,6 +1,16 @@
 {
   "watch": ["src"],
-  "ext": "ts",
-  "exec": "ts-node src/index.ts",
-  "ignore": ["src/**/*.spec.ts"]
+  "ext": ".ts,.js,.json",
+  "ignore": [".git", "node_modules/**/node_modules", "dist", "logs", "src/types/environment.d.ts"],
+  "exec": "ts-node -r dotenv/config ./src/index.ts",
+  "env": {
+    "NODE_ENV": "development",
+    "LOG_LEVEL": "debug"
+  },
+  "events": {
+    "start": "node src/utils/build.ts pre",
+    "crash": "echo '\nApplication crashed! Waiting for changes...\n'"
+  },
+  "delay": "1500",
+  "verbose": false
 }

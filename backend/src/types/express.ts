@@ -6,6 +6,14 @@ export interface AuthRequest extends Request {
     email: string;
     role?: 'patient' | 'doctor';
   };
+  id?: string; // Added for request ID tracking
+}
+
+// Extend base Request to include request ID
+declare module 'express' {
+  interface Request {
+    id?: string;
+  }
 }
 
 export interface PatientSignupRequest {
