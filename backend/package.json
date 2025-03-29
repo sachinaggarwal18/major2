@@ -7,7 +7,7 @@
     "build": "tsc",
     "postbuild": "ts-node src/utils/build.ts post",
     "start": "node dist/index.js",
-    "dev": "nodemon",
+    "dev": "npm run prebuild && tsx watch --clear-screen=false -r dotenv/config src/index.ts",
     "lint": "eslint . --ext .ts",
     "lint:fix": "eslint . --ext .ts --fix",
     "clean": "rimraf dist logs",
@@ -22,7 +22,6 @@
   "dependencies": {
     "@prisma/client": "^6.5.0",
     "argon2": "^0.41.1",
-    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
@@ -34,7 +33,6 @@
     "prisma": "^6.5.0"
   },
   "devDependencies": {
-    "@types/cookie-parser": "^1.4.8",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.1",
     "@types/jest": "^29.5.0",
@@ -45,11 +43,11 @@
     "@typescript-eslint/parser": "^8.28.0",
     "eslint": "^9.23.0",
     "jest": "^29.5.0",
-    "nodemon": "^3.1.9",
     "rimraf": "^6.0.1",
     "supertest": "^7.1.0",
     "ts-jest": "^29.1.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.19.3",
     "typescript": "^5.8.2"
   },
   "engines": {

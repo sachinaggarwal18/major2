@@ -79,8 +79,10 @@ const streams = pino.multistream([
       target: 'pino-pretty',
       options: {
         colorize: true,
-        translateTime: 'SYS:standard',
-        ignore: 'pid,hostname'
+        translateTime: 'SYS:yyyy-mm-dd HH:MM:ss.l', // More standard timestamp format
+        ignore: 'pid,hostname,service,env' // Keep console output cleaner. Removed messageFormat due to DataCloneError.
+        // messageFormat can't be used here as functions aren't cloneable for worker threads.
+        // pino-pretty will still display req.id if present in the log object.
       }
     })
   },
