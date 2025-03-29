@@ -1,5 +1,5 @@
 export interface Patient {
-  _id: string;
+  id: string;  // Changed from _id to id to match API response
   name: string;
   age: number;
   gender: 'Male' | 'Female' | 'Other';
@@ -12,13 +12,15 @@ export interface Patient {
 }
 
 export interface Doctor {
-  _id: string;
+  id: string;
   name: string;
   specialization: string;
   email: string;
   phoneNumber: string;
   licenseNumber: string;
   hospitalAffiliation?: string;
+  experience?: number;
+  address?: string;
   createdAt: string;
   updatedAt: string;
 }
