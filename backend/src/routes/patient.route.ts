@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { authenticate, isPatient, isDoctor } from '../middleware/auth';
 import { AuthRequest, PatientSignupRequest, LoginRequest } from '../types/express';
 import prisma from '../utils/prisma';
+import { generatePatientId } from '../utils/generateId';
 
 const router = express.Router();
 
@@ -60,8 +61,12 @@ router.post(
       });
 
       // Save the patient with hashed password
+      // Generate unique short ID for the patient
+      const shortId = await generatePatientId();
+
       const newPatient = await prisma.patient.create({
         data: {
+          shortId,
           name,
           email,
           password: hashedPassword,
@@ -161,6 +166,7 @@ router.get('/profile', authenticate, isPatient, async (req: AuthRequest, res: Re
       where: { id: req.user.id },
       select: {
         id: true,
+        shortId: true,
         name: true,
         email: true,
         age: true,
@@ -392,16 +398,17 @@ router.get(
 );
 
 // ==================== Get Patient by ID (Doctor Only) ====================
+// ==================== Find Patient by Short ID (Doctor Only) ====================
 router.get(
-  '/:id',
+  '/find/:shortId',
   authenticate,
   isDoctor,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { id } = req.params;
+      const { shortId } = req.params;
 
       const patient = await prisma.patient.findUnique({
-        where: { id },
+        where: { shortId },
         select: {
           id: true,
           name: true,
@@ -441,6 +448,7 @@ router.get(
       const patients = await prisma.patient.findMany({
         where: {
           OR: [
+            { shortId: { contains: query.toUpperCase() } },
             { name: { contains: query, mode: 'insensitive' } },
             { email: { contains: query, mode: 'insensitive' } },
             { address: { contains: query, mode: 'insensitive' } }
@@ -448,6 +456,7 @@ router.get(
         },
         select: {
           id: true,
+          shortId: true,
           name: true,
           email: true,
           age: true,

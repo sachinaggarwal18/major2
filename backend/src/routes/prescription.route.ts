@@ -20,7 +20,7 @@ router.post(
   authenticate,
   isDoctor,
   [
-    body('patientId').notEmpty().withMessage('Patient ID is required'),
+    body('patientShortId').notEmpty().withMessage('Patient Short ID is required'),
     body('diagnosis').notEmpty().withMessage('Diagnosis is required'),
     body('medications').isArray({ min: 1 }).withMessage('Medications must be provided'),
     body('medications.*.name').notEmpty().withMessage('Medication name is required'),
@@ -35,7 +35,7 @@ router.post(
       return;
     }
 
-    const { patientId, diagnosis, medications, notes, date } = req.body;
+    const { patientShortId, diagnosis, medications, notes, date } = req.body;
     const doctorId = (req as AuthRequest).user?.id;
 
     if (!doctorId) {
@@ -44,14 +44,14 @@ router.post(
     }
 
     try {
-      // Validate that both patient and doctor exist
-      const [patientExists, doctorExists] = await Promise.all([
-        prisma.patient.findUnique({ where: { id: patientId } }),
+      // Find patient by shortId and validate doctor exists
+      const [patient, doctorExists] = await Promise.all([
+        prisma.patient.findUnique({ where: { shortId: patientShortId } }),
         prisma.doctor.findUnique({ where: { id: doctorId } })
       ]);
 
-      if (!patientExists) {
-        res.status(404).json({ message: 'Patient not found' });
+      if (!patient) {
+        res.status(404).json({ message: `Patient with ID ${patientShortId} not found` });
         return;
       }
 
@@ -62,7 +62,7 @@ router.post(
 
       const newPrescription = await prisma.prescription.create({
         data: {
-          patientId,
+          patientId: patient.id, // Use the actual UUID internally
           doctorId,
           date: date || new Date(),
           diagnosis,
@@ -80,7 +80,8 @@ router.post(
 
       res.status(201).json({
         message: 'Prescription created successfully',
-        prescriptionId: newPrescription.id
+        prescriptionId: newPrescription.id,
+        patientShortId: patientShortId // Return the shortId for reference
       });
     } catch (error) {
       console.error('Error creating prescription:', error);
@@ -109,6 +110,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
           patient: {
             select: {
               id: true,
+              shortId: true,
               name: true,
               age: true,
               gender: true,
@@ -121,6 +123,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
           doctor: {
             select: {
               id: true,
+              shortId: true,
               name: true,
               specialization: true,
               licenseNumber: true,

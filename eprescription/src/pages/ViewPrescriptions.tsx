@@ -267,9 +267,14 @@ const ViewPrescriptions: FC = () => {
                     <CardTitle className="text-lg">
                       Prescription from Dr. {getIdentifierName(prescription.doctor)}
                     </CardTitle>
-                    <CardDescription className="flex items-center text-xs">
-                      <Clock className="mr-1 h-3 w-3" />
-                      {formatDate(prescription.createdAt)}
+                    <CardDescription className="space-y-1 text-xs">
+                      <div className="flex items-center">
+                        <Clock className="mr-1 h-3 w-3" />
+                        {formatDate(prescription.createdAt)}
+                      </div>
+                      <div className="flex items-center text-primary/80">
+                        <span className="font-medium">Patient ID: {prescription.patient.shortId}</span>
+                      </div>
                     </CardDescription>
                   </div>
                   <div className="flex items-center space-x-2">
@@ -293,7 +298,10 @@ const ViewPrescriptions: FC = () => {
                       <p className="text-muted-foreground mb-1">Doctor</p>
                       <p className="font-medium">{getIdentifierName(prescription.doctor)}</p>
                       {isDoctor(prescription.doctor) && (
-                        <p className="text-xs text-muted-foreground">{prescription.doctor.specialization}</p>
+                        <>
+                          <p className="text-xs text-primary/80">ID: {prescription.doctor.shortId}</p>
+                          <p className="text-xs text-muted-foreground">{prescription.doctor.specialization}</p>
+                        </>
                       )}
                     </div>
                     <div className="text-right">

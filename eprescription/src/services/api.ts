@@ -57,6 +57,12 @@ export const authService = {
 export const patientService = {
   getProfile: (token: string): Promise<{ patient: Patient }> => 
     apiCall<undefined, { patient: Patient }>('/patients/profile', 'GET', undefined, token),
+    
+  findByShortId: (shortId: string, token: string): Promise<{ patient: Patient }> =>
+    apiCall<undefined, { patient: Patient }>(`/patients/find/${shortId}`, 'GET', undefined, token),
+
+  searchPatients: (query: string, token: string): Promise<{ patients: Patient[] }> =>
+    apiCall<undefined, { patients: Patient[] }>(`/patients/search/${query}`, 'GET', undefined, token),
 };
 
 // Doctor service functions
@@ -67,8 +73,8 @@ export const doctorService = {
 
 // Prescription service functions
 export const prescriptionService = {
-  createPrescription: (data: PrescriptionCreateRequest, token: string): Promise<{ message: string, prescriptionId: string }> => 
-    apiCall<PrescriptionCreateRequest, { message: string, prescriptionId: string }>('/prescriptions/create', 'POST', data, token),
+  createPrescription: (data: PrescriptionCreateRequest, token: string): Promise<{ message: string, prescriptionId: string, patientShortId: string }> => 
+    apiCall<PrescriptionCreateRequest, { message: string, prescriptionId: string, patientShortId: string }>('/prescriptions/create', 'POST', data, token),
 
   getAllPrescriptions: (token: string): Promise<Prescription[]> => 
     apiCall<undefined, Prescription[]>('/prescriptions', 'GET', undefined, token),

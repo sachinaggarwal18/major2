@@ -30,7 +30,7 @@ export interface AuthResponse {
 }
 
 export interface PrescriptionCreateRequest {
-  patientId: string;
+  patientShortId: string;
   diagnosis: string;
   medications: Array<{
     name: string;

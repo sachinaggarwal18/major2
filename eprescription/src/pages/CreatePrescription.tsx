@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { PlusCircle, Trash2, Loader2 } from "lucide-react";
+import { PlusCircle, Trash2, Loader2, Search } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { prescriptionService } from "../services/api";
+import { prescriptionService, patientService } from "../services/api";
 
 import {
   Select,
@@ -59,7 +59,9 @@ const medicationSchema = z.object({
 
 // Define Zod schema for the entire form
 const formSchema = z.object({
-  patientId: z.string().min(1, { message: "Patient ID is required." }), // Assuming Patient ID is a string
+  patientShortId: z.string()
+    .min(1, { message: "Patient Short ID is required." })
+    .regex(/^PAT-[A-Z0-9_]{8}$/, { message: "Invalid Patient ID format. Should be like 'PAT-XXXXXXXX' (letters, numbers, underscore allowed)." }), // Allow underscore
   diagnosis: z.string().min(5, { message: "Diagnosis is required (min 5 chars)." }),
   medications: z.array(medicationSchema).min(1, { message: "At least one medication is required." }),
   notes: z.string().optional(),
@@ -75,7 +77,7 @@ const CreatePrescription: FC = () => {
   const form = useForm<PrescriptionFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      patientId: "",
+      patientShortId: "",
       diagnosis: "",
       medications: [{ name: "", dosage: "", frequency: "", duration: "" }], // Start with one medication row
       notes: "",
@@ -90,6 +92,9 @@ const CreatePrescription: FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<boolean>(false);
+  const [patientName, setPatientName] = useState<string | null>(null);
+  const [isSearching, setIsSearching] = useState<boolean>(false);
+  const [lookupError, setLookupError] = useState<string | null>(null);
 
   // Define the submit handler
   const onSubmit = async (values: PrescriptionFormValues): Promise<void> => {
@@ -110,6 +115,49 @@ const CreatePrescription: FC = () => {
     } catch (error) {
       console.error("Error creating prescription:", error);
       setError(error instanceof Error ? error.message : "Failed to create prescription. Please try again.");
+    }
+  };
+
+  // Handle patient lookup by shortId
+  const handlePatientLookup = async () => {
+    const shortId = form.getValues("patientShortId");
+    if (!shortId || !/^PAT-[A-Z0-9]{8}$/.test(shortId)) {
+      form.setError("patientShortId", { 
+        type: "manual", 
+        message: "Please enter a valid Patient ID (e.g., PAT-XXXXXXXX)." 
+      });
+      setPatientName(null);
+      setLookupError(null);
+      return;
+    }
+
+    setIsSearching(true);
+    setPatientName(null);
+    setLookupError(null);
+    setError(null); // Clear main form error
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLookupError("Authentication required.");
+        return;
+      }
+      
+      const response = await patientService.findByShortId(shortId, token);
+      if (response.patient) {
+        setPatientName(response.patient.name);
+        form.clearErrors("patientShortId"); // Clear error if found
+      } else {
+        setLookupError("Patient not found.");
+        form.setError("patientShortId", { type: "manual", message: "Patient not found." });
+      }
+    } catch (err) {
+      console.error("Patient lookup error:", err);
+      const apiError = err as { message?: string };
+      setLookupError(apiError.message ?? "Failed to find patient.");
+      form.setError("patientShortId", { type: "manual", message: apiError.message ?? "Lookup failed." });
+    } finally {
+      setIsSearching(false);
     }
   };
 
@@ -141,14 +189,43 @@ const CreatePrescription: FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField
                   control={form.control}
-                  name="patientId"
+                  name="patientShortId"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Patient ID</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Enter patient identifier" {...field} />
-                      </FormControl>
-                      <FormMessage />
+                      <FormLabel>Patient Short ID</FormLabel>
+                      <div className="flex items-center space-x-2">
+                        <FormControl>
+                          <Input 
+                            placeholder="Enter Patient ID (e.g., PAT-ABC123XY)" 
+                            {...field} 
+                            className="flex-grow"
+                          />
+                        </FormControl>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="icon" 
+                          onClick={handlePatientLookup}
+                          disabled={isSearching}
+                        >
+                          {isSearching ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Search className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </div>
+                      {patientName && !lookupError && (
+                        <p className="text-sm text-green-600 mt-1">
+                          Found: {patientName}
+                        </p>
+                      )}
+                      {lookupError && (
+                        <p className="text-sm text-destructive mt-1">
+                          {lookupError}
+                        </p>
+                      )}
+                      <FormMessage /> {/* Shows Zod validation errors */}
                     </FormItem>
                   )}
                 />

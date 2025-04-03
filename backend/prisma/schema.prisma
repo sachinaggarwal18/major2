@@ -11,6 +11,7 @@ datasource db {
 
 model Doctor {
   id                 String         @id @default(uuid())
+  shortId            String         @unique
   name               String
   specialization     String
   email              String         @unique
@@ -21,10 +22,13 @@ model Doctor {
   createdAt          DateTime       @default(now())
   updatedAt          DateTime       @updatedAt
   prescriptions      Prescription[]
+
+  @@map("doctor")
 }
 
 model Patient {
   id             String         @id @default(uuid())
+  shortId        String         @unique
   name           String
   age            Int
   gender         Gender
@@ -36,6 +40,8 @@ model Patient {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
   prescriptions  Prescription[]
+
+  @@map("patient")
 }
 
 model Prescription {
@@ -50,6 +56,8 @@ model Prescription {
   updatedAt   DateTime     @updatedAt
   patient     Patient      @relation(fields: [patientId], references: [id])
   doctor      Doctor       @relation(fields: [doctorId], references: [id])
+
+  @@map("prescription")
 }
 
 model Medication {
@@ -60,6 +68,8 @@ model Medication {
   duration       String
   prescriptionId String
   prescription   Prescription @relation(fields: [prescriptionId], references: [id], onDelete: Cascade)
+
+  @@map("medication")
 }
 
 enum Gender {

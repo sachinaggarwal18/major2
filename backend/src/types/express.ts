@@ -43,9 +43,8 @@ export interface LoginRequest {
 }
 
 export interface PrescriptionCreateRequest {
-  patientId: string;
-  doctorId: string;
-  date: Date;
+  patientShortId: string;
+  date?: Date;
   medications: Array<{
     name: string;
     dosage: string;

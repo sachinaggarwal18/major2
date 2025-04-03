@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import { authenticate, isDoctor } from '../middleware/auth';
 import { AuthRequest, DoctorSignupRequest, LoginRequest } from '../types/express';
 import prisma from '../utils/prisma';
+import { generateDoctorId } from '../utils/generateId';
 
 const router = express.Router();
 
@@ -62,8 +63,12 @@ router.post(
         parallelism: 1
       });
 
+      // Generate unique short ID for the doctor
+      const shortId = await generateDoctorId();
+
       const newDoctor = await prisma.doctor.create({
         data: {
+          shortId,
           name,
           email,
           password: hashedPassword,
@@ -159,6 +164,7 @@ router.get('/profile', authenticate, isDoctor, async (req: AuthRequest, res: Res
       where: { id: req.user.id },
       select: {
         id: true,
+        shortId: true,
         name: true,
         email: true,
         specialization: true,

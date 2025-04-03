@@ -1,5 +1,6 @@
 export interface Patient {
   id: string;
+  shortId: string;
   name: string;
   age: number;
   gender: 'Male' | 'Female' | 'Other';
@@ -13,6 +14,7 @@ export interface Patient {
 
 export interface Doctor {
   id: string;
+  shortId: string;
   name: string;
   specialization: string;
   email: string;

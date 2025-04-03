@@ -109,7 +109,7 @@ const PatientDashboard: FC = () => {
               <CardDescription>Your health information and prescriptions in one place.</CardDescription>
             </div>
             <Badge variant="outline" className="font-normal">
-              ID: {patient.id.substring(0, 8)}
+              Patient ID: {patient.shortId}
             </Badge>
           </div>
         </CardHeader>

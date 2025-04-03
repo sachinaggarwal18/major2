@@ -101,7 +101,7 @@ const DoctorDashboard: FC = () => {
               <CardDescription>Manage your patients and prescriptions efficiently.</CardDescription>
             </div>
             <Badge variant="outline" className="font-normal">
-              Doctor ID: {doctor.id.substring(0, 8)}
+              Doctor ID: {doctor.shortId}
             </Badge>
           </div>
         </CardHeader>
