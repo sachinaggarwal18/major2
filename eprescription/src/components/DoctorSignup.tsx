@@ -1,9 +1,11 @@
-import { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { FC, useState } from "react"; // Added useState
+import { Link, useNavigate } from "react-router-dom"; // Added Link
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Loader2, AlertCircle } from "lucide-react"; // Added Loader2, AlertCircle
 
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"; // Added Alert components
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -27,10 +29,10 @@ import { authService } from "../services/api";
 // Define the validation schema using Zod
 const formSchema = z.object({
   name: z.string().min(2, { message: "Name must be at least 2 characters." }),
-  email: z.string().email({ message: "Invalid email address." }),
+  email: z.string().email({ message: "Please enter a valid email address." }),
   specialization: z.string().min(2, { message: "Specialization is required." }),
   phoneNumber: z.string().min(10, { message: "Phone number must be at least 10 digits." }), // Basic validation
-  licenseNumber: z.string().min(5, { message: "License number is required." }), // Basic validation
+  licenseNumber: z.string().min(5, { message: "License number is required (min 5 chars)." }), // Basic validation
   hospitalAffiliation: z.string().optional(), // Optional field
   password: z.string().min(6, { message: "Password must be at least 6 characters." }),
 });
@@ -40,8 +42,9 @@ type SignupFormValues = z.infer<typeof formSchema>;
 
 const DoctorSignup: FC = () => {
   const navigate = useNavigate();
+  const [signupError, setSignupError] = useState<string | null>(null); // State for signup error
 
-  // Initialize the form using react-hook-form
+  // Initialize the form
   const form = useForm<SignupFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -57,130 +60,153 @@ const DoctorSignup: FC = () => {
 
   // Define the submit handler
   const onSubmit = async (values: SignupFormValues): Promise<void> => {
+    setSignupError(null); // Clear previous errors
     try {
-      const response = await authService.doctorSignup(values); // Use validated values
+      const response = await authService.doctorSignup(values); 
 
-      // Store the token in localStorage
       localStorage.setItem('token', response.token);
       localStorage.setItem('userType', 'doctor');
 
-      alert("Doctor registered successfully!"); // Consider using a Toast component later
-      navigate("/doctor-dashboard");
+      // No alert needed, navigate directly
+      navigate("/doctor-dashboard"); 
     } catch (error) {
       console.error("Signup Error:", error);
-      // Display error message using form.setError or a toast notification
-      const errorMessage = error instanceof Error ? error.message : "Signup failed. Please check your information.";
-      alert(errorMessage); // Replace with better error handling UI
-      // Example: form.setError("root", { type: "manual", message: errorMessage });
+      const errorMessage = error instanceof Error ? error.message : "Signup failed. Please check your information or try a different email.";
+      setSignupError(errorMessage); // Set the error state
     }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100 p-4">
-      <Card className="w-full max-w-lg"> {/* Increased max-width for more fields */}
-        <CardHeader>
-          <CardTitle>Doctor Signup</CardTitle>
-          <CardDescription>Create your account to manage prescriptions.</CardDescription>
+    // Use background from App.tsx, add padding top/bottom
+    <div className="flex justify-center items-center min-h-screen p-4 pt-16 pb-8"> 
+      <Card className="w-full max-w-lg shadow-md"> {/* Consistent styling */}
+        <CardHeader className="text-center"> {/* Center align header */}
+          <CardTitle className="text-2xl">Create Doctor Account</CardTitle>
+          <CardDescription>Fill in the details below to register.</CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4"> {/* Grid layout for fields */}
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Full Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Dr. John Doe" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Email</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="doctor@example.com" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="specialization"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Specialization</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Cardiology" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="phoneNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="9876543210" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="licenseNumber"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>License Number</FormLabel>
-                    <FormControl>
-                      <Input placeholder="ABC12345" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="hospitalAffiliation"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Hospital Affiliation (Optional)</FormLabel>
-                    <FormControl>
-                      <Input placeholder="General Hospital" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="password"
-                render={({ field }) => (
-                  <FormItem className="md:col-span-2"> {/* Span across columns */}
-                    <FormLabel>Password</FormLabel>
-                    <FormControl>
-                      <Input type="password" placeholder="******" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            <CardContent className="space-y-4"> {/* Changed grid to space-y */}
+              {/* Display Signup Error */}
+              {signupError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Signup Failed</AlertTitle>
+                  <AlertDescription>{signupError}</AlertDescription>
+                </Alert>
+              )}
+              {/* Use grid for form fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> 
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Full Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Dr. John Doe" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="doctor@example.com" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="specialization"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Specialization</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Cardiology" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phoneNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Phone Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="9876543210" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="licenseNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>License Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="ABC12345" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="hospitalAffiliation"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Hospital Affiliation (Optional)</FormLabel>
+                      <FormControl>
+                        <Input placeholder="General Hospital" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="password"
+                  render={({ field }) => (
+                    <FormItem className="md:col-span-2"> {/* Span across columns */}
+                      <FormLabel>Password</FormLabel>
+                      <FormControl>
+                        <Input type="password" placeholder="Choose a strong password" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
             </CardContent>
-            <CardFooter>
+            <CardFooter className="flex flex-col gap-4"> {/* Use flex-col for button and link */}
               <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
-                {form.formState.isSubmitting ? "Signing up..." : "Signup"}
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Signing up...
+                  </>
+                ) : (
+                  "Create Account"
+                )}
               </Button>
+              <p className="text-center text-sm text-muted-foreground">
+                Already have an account?{" "}
+                <Link to="/doctor/login" className="underline text-primary hover:text-primary/80">
+                  Log in
+                </Link>
+              </p>
             </CardFooter>
           </form>
         </Form>

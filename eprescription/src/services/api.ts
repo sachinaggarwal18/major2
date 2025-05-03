@@ -134,8 +134,16 @@ export const prescriptionService = {
     apiCall<undefined, Prescription>(`/prescriptions/${id}`, 'GET', undefined, token),
 };
 
+// Define the expected structure for a medication search result
+interface MedicationSearchResult {
+  id: string;
+  productName: string;
+  saltComposition: string;
+  manufacturer: string;
+}
+
 // Medication Master Service
 export const medicationService = {
-  searchMedications: (query: string, token: string): Promise<{ medications: { id: string; name: string; description: string | null }[] }> => 
-    apiCall<undefined, { medications: { id: string; name: string; description: string | null }[] }>(`/medications/search?query=${encodeURIComponent(query)}`, 'GET', undefined, token),
+  searchMedications: (query: string, token: string): Promise<{ medications: MedicationSearchResult[] }> => 
+    apiCall<undefined, { medications: MedicationSearchResult[] }>(`/medications/search?query=${encodeURIComponent(query)}`, 'GET', undefined, token),
 };

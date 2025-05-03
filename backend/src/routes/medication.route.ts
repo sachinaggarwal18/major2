@@ -18,23 +18,39 @@ router.get(
         return;
       }
 
+      const searchTerm = query.trim();
+
       const medications = await prisma.medicationMaster.findMany({
         where: {
-          name: {
-            contains: query.trim(),
-            mode: 'insensitive' // Case-insensitive search
-          }
+          OR: [
+            {
+              productName: {
+                contains: searchTerm,
+                mode: 'insensitive', // Case-insensitive search
+              },
+            },
+            {
+              saltComposition: {
+                contains: searchTerm,
+                mode: 'insensitive',
+              },
+            },
+          ],
         },
         select: {
           id: true,
-          name: true,
-          description: true
+          productName: true,      // Return brand name
+          saltComposition: true,  // Return generic name
+          manufacturer: true,     // Return manufacturer
         },
         orderBy: {
-          name: 'asc' // Order results alphabetically
+          // Optionally order by relevance or name
+          productName: 'asc', 
         },
-        take: 10 // Limit results for performance
+        take: 20, // Increase limit slightly for more options
       });
+
+      // Consider adding relevance scoring or prioritizing productName matches if needed later
 
       res.status(200).json({ medications });
     } catch (error) {

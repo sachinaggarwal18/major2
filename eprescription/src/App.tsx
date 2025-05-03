@@ -1,6 +1,7 @@
 import { FC } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import Navbar from "./components/Navbar";
+// Removed Navbar import as it's now in Layout
+import Layout from "./components/Layout"; // Import the new Layout component
 import ErrorBoundary from "./components/ErrorBoundary";
 import Home from "./pages/Home";
 import DoctorLogin from "./components/DoctorLogin";
@@ -14,56 +15,45 @@ import ViewPrescriptions from "./pages/ViewPrescriptions";
 
 const App: FC = () => {
   return (
-    <ErrorBoundary>
-      <BrowserRouter>
+    <BrowserRouter>
+      {/* Wrap all routes in ErrorBoundary */}
+      <ErrorBoundary> 
         <div className="min-h-screen bg-background font-sans antialiased">
-          <Navbar />
-          <main className="relative">
-            <div className="flex-1">
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/doctor/login" element={<DoctorLogin />} />
-                <Route path="/doctor/signup" element={<DoctorSignup />} />
-                <Route 
-                  path="/doctor-dashboard" 
-                  element={
-                    <ErrorBoundary>
-                      <DoctorDashboard />
-                    </ErrorBoundary>
-                  } 
-                />
-                <Route path="/patient/login" element={<PatientLogin />} />
-                <Route path="/patient/signup" element={<PatientSignup />} />
-                <Route 
-                  path="/patient-dashboard" 
-                  element={
-                    <ErrorBoundary>
-                      <PatientDashboard />
-                    </ErrorBoundary>
-                  } 
-                />
-                <Route 
-                  path="/create-prescription" 
-                  element={
-                    <ErrorBoundary>
-                      <CreatePrescription />
-                    </ErrorBoundary>
-                  } 
-                />
-                <Route 
-                  path="/view-prescriptions" 
-                  element={
-                    <ErrorBoundary>
-                      <ViewPrescriptions />
-                    </ErrorBoundary>
-                  } 
-                />
-              </Routes>
-            </div>
-          </main>
+          <Routes>
+            {/* Routes outside the main Layout (no persistent Navbar) */}
+            <Route path="/" element={<Home />} />
+            <Route path="/doctor/login" element={<DoctorLogin />} />
+            <Route path="/doctor/signup" element={<DoctorSignup />} />
+            <Route path="/patient/login" element={<PatientLogin />} />
+            <Route path="/patient/signup" element={<PatientSignup />} />
+
+            {/* Routes inside the main Layout (with persistent Navbar) */}
+            <Route element={<Layout />}>
+              <Route 
+                path="/doctor-dashboard" 
+                element={<DoctorDashboard />} 
+              />
+              <Route 
+                path="/patient-dashboard" 
+                element={<PatientDashboard />} 
+              />
+              <Route 
+                path="/create-prescription" 
+                element={<CreatePrescription />} 
+              />
+              <Route 
+                path="/view-prescriptions" 
+                element={<ViewPrescriptions />} 
+              />
+              {/* Add other authenticated routes here */}
+            </Route>
+
+            {/* Optional: Add a 404 Not Found route */}
+            {/* <Route path="*" element={<NotFoundPage />} /> */}
+          </Routes>
         </div>
-      </BrowserRouter>
-    </ErrorBoundary>
+      </ErrorBoundary>
+    </BrowserRouter>
   );
 }
 

@@ -240,53 +240,62 @@ const PatientDashboard: FC = () => {
 
   const { patient } = data;
 
+  // Helper function for date formatting
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-IN', { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric' 
+    });
+  };
+
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-8">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-10"> {/* Increased default spacing */}
       {/* Profile Overview */}
-      <Card className="border-primary/20">
-        <CardHeader className="space-y-4">
-          <div className="flex justify-between items-start">
-            <div className="space-y-2">
-              <CardTitle className="text-2xl font-bold">Welcome, {patient.name}!</CardTitle>
-              <CardDescription>Your health information and prescriptions in one place.</CardDescription>
+      <Card className="border-primary/20 shadow-sm"> {/* Added subtle shadow */}
+        <CardHeader className="pb-4"> {/* Reduced bottom padding */}
+          <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+            <div className="space-y-1.5"> {/* Reduced space */}
+              <CardTitle className="text-2xl lg:text-3xl font-bold tracking-tight">Welcome, {patient.name}!</CardTitle>
+              <CardDescription>Your health dashboard and uploaded prescriptions.</CardDescription>
             </div>
-            <Badge variant="outline" className="font-normal">
-              Patient ID: {patient.shortId}
+            <Badge variant="secondary" className="font-mono text-sm py-1 px-3"> {/* Changed variant and style */}
+              ID: {patient.shortId}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-6">
+        <CardContent className="pt-4 space-y-6"> {/* Added top padding */}
           {/* Personal Information */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card className="border-primary/10">
-              <CardHeader>
-                <CardTitle className="text-lg">Personal Information</CardTitle>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4"> {/* Reduced gap */}
+            <Card className="border-border/30 shadow-xs"> {/* Adjusted border/shadow */}
+              <CardHeader className="py-3 px-4 border-b"> {/* Compact header */}
+                <CardTitle className="text-base font-semibold">Personal Info</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center text-sm">
-                  <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+              <CardContent className="p-4 space-y-3"> {/* Adjusted padding/spacing */}
+                <div className="flex items-center text-sm space-x-2">
+                  <Clock className="h-4 w-4 text-muted-foreground flex-shrink-0" />
                   <span className="text-muted-foreground">Age:</span>
-                  <span className="ml-2">{patient.age} years</span>
+                  <span>{patient.age} years</span>
                 </div>
-                <div className="flex items-center text-sm">
-                  <Badge variant="secondary" className="font-normal">
+                <div className="flex items-center text-sm space-x-2">
+                   <Badge variant="outline" className="font-normal text-xs py-0.5 px-1.5"> {/* Smaller badge */}
                     {patient.gender}
                   </Badge>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-primary/10">
-              <CardHeader>
-                <CardTitle className="text-lg">Contact Details</CardTitle>
+            <Card className="border-border/30 shadow-xs"> {/* Adjusted border/shadow */}
+              <CardHeader className="py-3 px-4 border-b"> {/* Compact header */}
+                <CardTitle className="text-base font-semibold">Contact Details</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex items-center text-sm">
-                  <Phone className="h-4 w-4 mr-2 text-muted-foreground" />
+              <CardContent className="p-4 space-y-3"> {/* Adjusted padding/spacing */}
+                <div className="flex items-start text-sm space-x-2"> {/* Use items-start for long addresses */}
+                  <Phone className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                   <span>{patient.phoneNumber}</span>
                 </div>
-                <div className="flex items-center text-sm">
-                  <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                <div className="flex items-start text-sm space-x-2"> {/* Use items-start */}
+                  <MapPin className="h-4 w-4 text-muted-foreground flex-shrink-0 mt-0.5" />
                   <span>{patient.address}</span>
                 </div>
               </CardContent>
@@ -295,12 +304,12 @@ const PatientDashboard: FC = () => {
 
           {/* Medical History if available */}
           {patient.medicalHistory && (
-            <Card className="border-primary/10">
-              <CardHeader>
-                <CardTitle className="text-lg">Medical History</CardTitle>
+            <Card className="border-border/30 shadow-xs"> {/* Adjusted border/shadow */}
+              <CardHeader className="py-3 px-4 border-b"> {/* Compact header */}
+                <CardTitle className="text-base font-semibold">Medical History</CardTitle>
               </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground">{patient.medicalHistory}</p>
+              <CardContent className="p-4">
+                <p className="text-sm text-muted-foreground whitespace-pre-wrap">{patient.medicalHistory}</p> {/* Preserve whitespace */}
               </CardContent>
             </Card>
           )}
@@ -308,90 +317,90 @@ const PatientDashboard: FC = () => {
       </Card>
 
       {/* Quick Actions */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold tracking-tight">Quick Actions</h2>
+      <div className="space-y-3"> {/* Reduced space */}
+        <h2 className="text-xl font-semibold tracking-tight">Quick Actions</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <Link to="/view-prescriptions" className="group">
-            <Card className="hover:shadow-md transition-all duration-200 hover:border-primary/30">
-              <CardContent className="p-6 flex flex-col items-center justify-center space-y-2 text-center min-h-[140px]">
-                <div className="p-3 rounded-full bg-primary/10 text-primary ring-2 ring-primary/20 group-hover:ring-primary/30 transition-all duration-200">
-                  <FileText className="h-6 w-6" />
+            <Card className="hover:shadow-lg transition-shadow duration-200 hover:border-primary/40 border-border/30"> {/* Enhanced hover */}
+              <CardContent className="p-5 flex flex-col items-center justify-center space-y-2 text-center min-h-[150px]"> {/* Adjusted padding/height */}
+                <div className="p-3 rounded-full bg-primary/10 text-primary ring-1 ring-primary/20 group-hover:ring-primary/40 transition-all duration-200">
+                  <FileText className="h-5 w-5" /> {/* Slightly smaller icon */}
                 </div>
-                <span className="font-medium">My Prescriptions</span>
-                <p className="text-sm text-muted-foreground">View your prescriptions history</p>
+                <span className="font-semibold text-base">My Prescriptions</span> {/* Bolder text */}
+                <p className="text-xs text-muted-foreground">View digitally created prescriptions</p> {/* Smaller description */}
               </CardContent>
             </Card>
           </Link>
 
-          <Card className="hover:shadow-md transition-all duration-200 opacity-70">
-            <CardContent className="p-6 flex flex-col items-center justify-center space-y-2 text-center min-h-[140px]">
-              <div className="p-3 rounded-full bg-muted text-muted-foreground ring-2 ring-muted">
-                <Calendar className="h-6 w-6" />
+          {/* Disabled Cards - Adjusted styling */}
+          <Card className="border-border/30 bg-muted/50 opacity-80 cursor-not-allowed">
+            <CardContent className="p-5 flex flex-col items-center justify-center space-y-2 text-center min-h-[150px]">
+              <div className="p-3 rounded-full bg-muted text-muted-foreground ring-1 ring-border">
+                <Calendar className="h-5 w-5" />
               </div>
-              <span className="font-medium">Book Appointment</span>
-              <p className="text-sm text-muted-foreground">Coming soon</p>
+              <span className="font-semibold text-base text-muted-foreground">Book Appointment</span>
+              <p className="text-xs text-muted-foreground">Feature coming soon</p>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-md transition-all duration-200 opacity-70">
-            <CardContent className="p-6 flex flex-col items-center justify-center space-y-2 text-center min-h-[140px]">
-              <div className="p-3 rounded-full bg-muted text-muted-foreground ring-2 ring-muted">
-                <BookHeart className="h-6 w-6" />
+          <Card className="border-border/30 bg-muted/50 opacity-80 cursor-not-allowed">
+            <CardContent className="p-5 flex flex-col items-center justify-center space-y-2 text-center min-h-[150px]">
+              <div className="p-3 rounded-full bg-muted text-muted-foreground ring-1 ring-border">
+                <BookHeart className="h-5 w-5" />
               </div>
-              <span className="font-medium">Medical History</span>
-              <p className="text-sm text-muted-foreground">Coming soon</p>
+              <span className="font-semibold text-base text-muted-foreground">Update History</span>
+              <p className="text-xs text-muted-foreground">Feature coming soon</p>
             </CardContent>
           </Card>
         </div>
       </div>
 
       {/* Upload Prescription Section */}
-      <Card>
+      <Card className="shadow-sm"> {/* Added shadow */}
         <CardHeader>
-          <CardTitle>Upload Prescription</CardTitle>
+          <CardTitle className="text-xl">Upload Prescription File</CardTitle> {/* Adjusted size */}
           <CardDescription>
-            Upload existing prescription files (PDF, JPG, PNG - max 5MB).
+            Upload existing prescription files (PDF, JPG, PNG - Max 5MB). These are stored for your reference.
           </CardDescription>
         </CardHeader>
         <form onSubmit={handleUploadSubmit}>
-          <CardContent className="space-y-4">
-            {uploadError && (
-              <Alert variant="destructive">
+          <CardContent className="space-y-5"> {/* Increased space */}
+            {/* Combined Alerts */}
+            {(uploadError || uploadSuccess) && (
+              <Alert variant={uploadError ? "destructive" : "default"} className={uploadSuccess ? "bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200" : ""}>
                 <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Upload Failed</AlertTitle>
-                <AlertDescription>{uploadError}</AlertDescription>
+                <AlertTitle>{uploadError ? "Upload Failed" : "Upload Successful"}</AlertTitle>
+                <AlertDescription>{uploadError || uploadSuccess}</AlertDescription>
               </Alert>
             )}
-            {uploadSuccess && (
-              <Alert className="bg-green-50 text-green-700 border-green-200">
-                <AlertCircle className="h-4 w-4" /> {/* Use AlertCircle or Check icon */}
-                <AlertTitle>Upload Successful</AlertTitle>
-                <AlertDescription>{uploadSuccess}</AlertDescription>
-              </Alert>
-            )}
-            <div className="grid w-full max-w-sm items-center gap-1.5">
-              <Label htmlFor="prescriptionFile">Prescription File</Label>
-              <Input 
-                id="prescriptionFile" 
-                type="file" 
-                onChange={handleFileChange} 
-                accept=".pdf,.jpg,.jpeg,.png" 
-                required 
-              />
-              {selectedFile && <p className="text-sm text-muted-foreground mt-1">Selected: {selectedFile.name}</p>}
-            </div>
-            <div className="grid w-full gap-1.5">
-              <Label htmlFor="uploadNotes">Notes (Optional)</Label>
-              <Textarea 
-                placeholder="Add any notes about this prescription..." 
-                id="uploadNotes" 
-                value={uploadNotes}
-                onChange={handleNotesChange}
-              />
+            {/* Form Fields */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-start">
+              <div className="space-y-2">
+                <Label htmlFor="prescriptionFile" className="font-medium">Prescription File*</Label>
+                <Input 
+                  id="prescriptionFile" 
+                  type="file" 
+                  onChange={handleFileChange} 
+                  accept=".pdf,.jpg,.jpeg,.png" 
+                  required 
+                  className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20"
+                />
+                {selectedFile && <p className="text-xs text-muted-foreground pt-1">Selected: {selectedFile.name}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="uploadNotes" className="font-medium">Notes (Optional)</Label>
+                <Textarea 
+                  placeholder="e.g., 'For fever, taken on Jan 2024'" 
+                  id="uploadNotes" 
+                  value={uploadNotes}
+                  onChange={handleNotesChange}
+                  rows={3} // Limit rows
+                />
+              </div>
             </div>
           </CardContent>
-          <CardFooter>
-            <Button type="submit" disabled={uploading || !selectedFile}>
+          <CardFooter className="border-t px-6 py-4"> {/* Added border */}
+            <Button type="submit" disabled={uploading || !selectedFile} size="sm"> {/* Smaller button */}
               {uploading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -409,59 +418,60 @@ const PatientDashboard: FC = () => {
       </Card>
 
       {/* My Uploaded Prescriptions Section */}
-      <Card>
+      <Card className="shadow-sm"> {/* Added shadow */}
         <CardHeader>
-          <CardTitle>My Uploaded Prescriptions</CardTitle>
-          <CardDescription>View and manage your uploaded files.</CardDescription>
+          <CardTitle className="text-xl">My Uploaded Files</CardTitle> {/* Adjusted size */}
+          <CardDescription>View and manage your uploaded prescription files.</CardDescription>
         </CardHeader>
-        <CardContent>
-          {listLoading && (
-            <div className="flex items-center justify-center py-4">
+        <CardContent className="p-0"> {/* Remove padding for full-width table */}
+          {/* Conditional rendering inside CardContent */}
+          {listLoading ? (
+            <div className="flex items-center justify-center p-6">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
               <span className="ml-2 text-muted-foreground">Loading uploads...</span>
             </div>
-          )}
-          {listError && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertTitle>Error Loading List</AlertTitle>
-              <AlertDescription>{listError}</AlertDescription>
-            </Alert>
-          )}
-          {!listLoading && !listError && uploadedPrescriptions.length === 0 && (
-            <p className="text-center text-muted-foreground py-4">No prescriptions uploaded yet.</p>
-          )}
-          {!listLoading && !listError && uploadedPrescriptions.length > 0 && (
+          ) : listError ? (
+            <div className="p-6"> {/* Add padding for error message */}
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Error Loading List</AlertTitle>
+                <AlertDescription>{listError}</AlertDescription>
+              </Alert>
+            </div>
+          ) : uploadedPrescriptions.length === 0 ? (
+            <p className="text-center text-muted-foreground p-6">No prescriptions uploaded yet.</p>
+          ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Filename</TableHead>
+                  <TableHead className="w-[40%]">Filename</TableHead> {/* Adjusted width */}
                   <TableHead>Notes</TableHead>
-                  <TableHead>Uploaded On</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="hidden sm:table-cell">Uploaded</TableHead> {/* Hide on small screens */}
+                  <TableHead className="text-right">Action</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {uploadedPrescriptions.map((prescription) => (
-                  <TableRow key={prescription.id}>
-                    <TableCell className="font-medium">{prescription.filename}</TableCell>
-                    <TableCell className="text-muted-foreground max-w-xs truncate">
+                  <TableRow key={prescription.id} className="hover:bg-muted/50"> {/* Added hover effect */}
+                    <TableCell className="font-medium truncate max-w-xs">{prescription.filename}</TableCell>
+                    <TableCell className="text-muted-foreground text-xs truncate max-w-[200px]"> {/* Smaller text, truncate */}
                       {prescription.notes || '-'}
                     </TableCell>
-                    <TableCell>{new Date(prescription.uploadDate).toLocaleDateString()}</TableCell>
+                    <TableCell className="hidden sm:table-cell text-xs">{formatDate(prescription.uploadDate)}</TableCell> {/* Use formatter */}
                     <TableCell className="text-right">
                       <Button
-                        variant="destructive"
-                        size="sm"
+                        variant="ghost" // Changed to ghost
+                        size="icon" // Changed to icon size
+                        className="text-destructive hover:bg-destructive/10 h-8 w-8" // Adjusted size/styling
                         onClick={() => handleDelete(prescription.id)}
                         disabled={deletingId === prescription.id}
+                        aria-label="Delete uploaded prescription"
                       >
                         {deletingId === prescription.id ? (
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <Trash2 className="h-4 w-4" />
                         )}
-                        <span className="sr-only">Delete</span>
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -473,7 +483,7 @@ const PatientDashboard: FC = () => {
       </Card>
 
       {/* Footer Actions */}
-      <Card className="bg-muted/50 border-none">
+      <Card className="bg-background border-t mt-12"> {/* Use background, add top margin */}
         <CardContent className="flex justify-between items-center p-4">
           <Button variant="ghost" disabled className="text-muted-foreground">
             <Mail className="mr-2 h-4 w-4" />

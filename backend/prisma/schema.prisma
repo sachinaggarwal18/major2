@@ -79,18 +79,24 @@ enum Gender {
   Other
 }
 
-// New model for master list of medications
+// Master list of medications from dataset
 model MedicationMaster {
-  id          String   @id @default(uuid())
-  name        String   @unique // Standardized name
-  description String?  // Optional description, e.g., common uses
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id               String   @id @default(uuid())
+  productName      String   // From CSV: product_name (Brand Name)
+  saltComposition  String   // From CSV: salt_composition (Generic Name/Active Ingredient)
+  manufacturer     String   // From CSV: product_manufactured
+  subCategory      String?  // From CSV: sub_category
+  sideEffects      String?  // From CSV: side_effects
+  drugInteractions String?  // From CSV: drug_interactions (Stored as string/JSON)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
+  @@index([productName]) // Add index for faster searching by product name
+  @@index([saltComposition]) // Add index for faster searching by salt composition
   @@map("medication_master")
 }
 
-// New model for storing uploaded prescription files
+// Model for storing uploaded prescription files
 model UploadedPrescription {
   id        String   @id @default(uuid())
   patientId String

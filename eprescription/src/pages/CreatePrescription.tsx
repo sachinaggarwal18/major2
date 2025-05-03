@@ -110,9 +110,17 @@ const CreatePrescription: FC = () => {
   const [patientName, setPatientName] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+
+  // Define the type for a medication search result based on the updated API
+  interface MedicationSearchResult {
+    id: string;
+    productName: string;
+    saltComposition: string;
+    manufacturer: string;
+  }
   
   // State for medication search results and loading status for each row
-  const [medicationSearchResults, setMedicationSearchResults] = useState<Record<number, { id: string; name: string }[]>>({});
+  const [medicationSearchResults, setMedicationSearchResults] = useState<Record<number, MedicationSearchResult[]>>({}); // Updated type
   const [medicationSearchLoading, setMedicationSearchLoading] = useState<Record<number, boolean>>({});
   const [medicationSearchQuery, setMedicationSearchQuery] = useState<Record<number, string>>({});
   const [popoverOpen, setPopoverOpen] = useState<Record<number, boolean>>({}); // Track popover state per row
@@ -140,8 +148,11 @@ const CreatePrescription: FC = () => {
       }
       setMedicationSearchLoading(prev => ({ ...prev, [index]: true }));
       try {
-        const response = await medicationService.searchMedications(query, token);
-        setMedicationSearchResults(prev => ({ ...prev, [index]: response.medications || [] }));
+        // Assuming medicationService.searchMedications now returns { medications: MedicationSearchResult[] }
+        const response = await medicationService.searchMedications(query, token); 
+        // Ensure the response structure matches expectations
+        const results: MedicationSearchResult[] = response.medications || []; 
+        setMedicationSearchResults(prev => ({ ...prev, [index]: results }));
       } catch (error) {
         console.error(`Error searching medication for index ${index}:`, error);
         setMedicationSearchResults(prev => ({ ...prev, [index]: [] })); // Clear results on error
@@ -218,272 +229,288 @@ const CreatePrescription: FC = () => {
   };
 
   return (
-    <div className="container mx-auto p-4 md:p-8">
-      <Card className="w-full max-w-3xl mx-auto shadow-lg border-border/40">
-        <CardHeader className="space-y-2">
+    <div className="container mx-auto p-4 md:p-6 lg:p-8"> {/* Consistent padding */}
+      <Card className="w-full max-w-4xl mx-auto shadow-lg border-border/40"> {/* Increased max-width */}
+        <CardHeader className="border-b pb-4"> {/* Added border */}
           <CardTitle className="text-2xl font-bold tracking-tight">Create New Prescription</CardTitle>
-          <CardDescription className="text-muted-foreground">
-            Fill in the details below for the patient's prescription.
+          <CardDescription className="text-muted-foreground pt-1"> {/* Added padding */}
+            Fill in the patient details and add medications below.
           </CardDescription>
         </CardHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)}>
-            <CardContent className="space-y-6">
-              {error && (
-                <Alert variant="destructive">
-                  <AlertDescription>{error}</AlertDescription>
+            <CardContent className="p-6 space-y-8"> {/* Adjusted padding and spacing */}
+              {/* Combined Alerts */}
+              {(error || success) && (
+                <Alert variant={error ? "destructive" : "default"} className={success ? "bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200" : ""}>
+                  <AlertDescription>{error || "Prescription created successfully! Redirecting..."}</AlertDescription>
                 </Alert>
               )}
-              {success && (
-                <Alert className="bg-green-50 text-green-700 border-green-200">
-                  <AlertDescription>
-                    Prescription created successfully! Redirecting...
-                  </AlertDescription>
-                </Alert>
-              )}
-              {/* Patient ID and Diagnosis */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="patientShortId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Patient Short ID</FormLabel>
-                      <div className="flex items-center space-x-2">
-                        <FormControl>
-                          <Input 
-                            placeholder="Enter Patient ID (e.g., PAT-ABC123XY)" 
-                            {...field} 
-                            className="flex-grow"
-                          />
-                        </FormControl>
-                        <Button 
-                          type="button" 
-                          variant="outline" 
-                          size="icon" 
-                          onClick={handlePatientLookup}
-                          disabled={isSearching}
-                        >
-                          {isSearching ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Search className="h-4 w-4" />
+              
+              {/* Patient ID and Diagnosis Section */}
+              <div className="space-y-4">
+                 <h3 className="text-lg font-medium border-b pb-2">Patient Information</h3>
+                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-start">
+                    <FormField
+                      control={form.control}
+                      name="patientShortId"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-2">
+                          <FormLabel>Patient Short ID*</FormLabel>
+                          <div className="flex items-center space-x-2">
+                            <FormControl>
+                              <Input 
+                                placeholder="Enter Patient ID (e.g., PAT-ABC123XY)" 
+                                {...field} 
+                                className="flex-grow"
+                              />
+                            </FormControl>
+                            <Button 
+                              type="button" 
+                              variant="outline" 
+                              size="icon" 
+                              onClick={handlePatientLookup}
+                              disabled={isSearching}
+                              aria-label="Search Patient"
+                            >
+                              {isSearching ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Search className="h-4 w-4" />
+                              )}
+                            </Button>
+                          </div>
+                          {/* Combined Lookup Status */}
+                          {(patientName || lookupError) && (
+                            <p className={`text-sm mt-1 ${patientName ? 'text-green-600' : 'text-destructive'}`}>
+                              {patientName ? `Found: ${patientName}` : lookupError}
+                            </p>
                           )}
-                        </Button>
-                      </div>
-                      {patientName && !lookupError && (
-                        <p className="text-sm text-green-600 mt-1">
-                          Found: {patientName}
-                        </p>
+                          <FormMessage /> {/* Shows Zod validation errors */}
+                        </FormItem>
                       )}
-                      {lookupError && (
-                        <p className="text-sm text-destructive mt-1">
-                          {lookupError}
-                        </p>
+                    />
+                    {/* Diagnosis field moved here */}
+                    <FormField
+                      control={form.control}
+                      name="diagnosis"
+                      render={({ field }) => (
+                        <FormItem className="md:col-span-3"> {/* Span full width */}
+                          <FormLabel>Diagnosis*</FormLabel>
+                          <FormControl>
+                            <Textarea placeholder="Describe the diagnosis (e.g., Viral Fever, Hypertension)" {...field} rows={2} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
                       )}
-                      <FormMessage /> {/* Shows Zod validation errors */}
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="diagnosis"
-                  render={({ field }) => (
-                    <FormItem className="md:col-span-2">
-                      <FormLabel>Diagnosis</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Describe the diagnosis" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    />
+                 </div>
               </div>
 
-              {/* Medications Array */}
+              {/* Medications Array Section */}
               <div className="space-y-4">
-                <FormLabel>Medications</FormLabel>
-                {fields.map((field, index) => (
-                  <div key={field.id} className="grid grid-cols-1 sm:grid-cols-5 gap-2 items-start border p-3 rounded-md relative">
-                    <FormField
-                      control={form.control}
-                      name={`medications.${index}.name`}
-                      render={({ field: medField }) => (
-                        <FormItem className="sm:col-span-2 flex flex-col">
-                          <FormLabel className="sr-only">Name</FormLabel>
-                          <Popover open={popoverOpen[index]} onOpenChange={(isOpen) => setPopoverOpen(prev => ({ ...prev, [index]: isOpen }))}>
-                            <PopoverTrigger asChild>
-                              <FormControl>
-                                <Button
-                                  variant="outline"
-                                  role="combobox"
-                                  aria-expanded={popoverOpen[index]}
-                                  className="w-full justify-between font-normal"
-                                >
-                                  {medField.value
-                                    ? medicationSearchResults[index]?.find(
-                                        (med) => med.name === medField.value
-                                      )?.name ?? medField.value // Show selected value or typed value
-                                    : "Select or type medicine..."}
-                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                                </Button>
-                              </FormControl>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[--radix-popover-content-available-height] p-0">
-                              <Command shouldFilter={false}> {/* Disable default filtering */}
-                                <CommandInput
-                                  placeholder="Search medicine..."
-                                  value={medicationSearchQuery[index] || ''}
-                                  onValueChange={(search) => {
-                                    setMedicationSearchQuery(prev => ({ ...prev, [index]: search }));
-                                    const token = localStorage.getItem('token');
-                                    if (token) {
-                                      debouncedMedicationSearch(search, index, token);
-                                    }
-                                    // Also update the form field value as user types if needed, or only on select
-                                    // medField.onChange(search); // Optional: update form value while typing
-                                  }}
-                                />
-                                <CommandList>
-                                  {medicationSearchLoading[index] && <CommandItem disabled>Loading...</CommandItem>}
-                                  <CommandEmpty>
-                                    {medicationSearchQuery[index]?.length >= 2 ? 'No medicine found.' : 'Type at least 2 characters.'}
-                                  </CommandEmpty>
-                                  <CommandGroup>
-                                    {medicationSearchResults[index]?.map((med) => (
-                                      <CommandItem
-                                        key={med.id}
-                                        value={med.name} // Use name for Command's internal value handling
-                                        onSelect={(currentValue) => {
-                                          // When an item is selected from the list
-                                          form.setValue(`medications.${index}.name`, currentValue === medField.value ? "" : currentValue); // Set the form value
-                                          setMedicationSearchQuery(prev => ({ ...prev, [index]: currentValue })); // Update display query
-                                          setPopoverOpen(prev => ({ ...prev, [index]: false })); // Close popover
-                                        }}
-                                      >
-                                        <Check
-                                          className={`mr-2 h-4 w-4 ${
-                                            medField.value === med.name ? "opacity-100" : "opacity-0"
-                                          }`}
-                                        />
-                                        {med.name}
-                                      </CommandItem>
-                                    ))}
-                                  </CommandGroup>
-                                </CommandList>
-                              </Command>
-                            </PopoverContent>
-                          </Popover>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`medications.${index}.dosage`}
-                      render={({ field: medField }) => (
-                        <FormItem>
-                          <FormLabel className="sr-only">Dosage</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Dosage" {...medField} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`medications.${index}.frequency`}
-                      render={({ field: medField }) => (
-                        <FormItem>
-                          <FormLabel className="sr-only">Frequency</FormLabel>
-                          <Select
-                            onValueChange={medField.onChange}
-                            defaultValue={medField.value}
-                          >
+                <h3 className="text-lg font-medium border-b pb-2">Medications*</h3>
+                <div className="space-y-4"> {/* Wrapper for medication rows */}
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="grid grid-cols-12 gap-x-3 gap-y-2 items-start bg-muted/30 dark:bg-muted/10 p-4 rounded-md border relative">
+                      {/* Medication Name - Adjusted grid span */}
+                      <FormField
+                        control={form.control}
+                        name={`medications.${index}.name`}
+                        render={({ field: medField }) => (
+                          <FormItem className="col-span-12 sm:col-span-6 md:col-span-4 flex flex-col">
+                            <FormLabel className="mb-1 text-xs font-medium">Name*</FormLabel>
+                            <Popover open={popoverOpen[index]} onOpenChange={(isOpen) => setPopoverOpen(prev => ({ ...prev, [index]: isOpen }))}>
+                              <PopoverTrigger asChild>
+                                <FormControl>
+                                  <Button
+                                    variant="outline"
+                                    role="combobox"
+                                    aria-expanded={popoverOpen[index]}
+                                    className="w-full justify-between font-normal bg-background text-left h-auto min-h-10" // Ensure background, allow wrapping
+                                  >
+                                    {medField.value
+                                      ? // Find the selected medication in the results (if available) or just show the value
+                                        medicationSearchResults[index]?.find(
+                                          (med) => med.productName === medField.value // Match by productName
+                                        )?.productName ?? medField.value 
+                                      : "Select or type medicine..."}
+                                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                  </Button>
+                                </FormControl>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[--radix-popover-content-available-height] p-0">
+                                <Command shouldFilter={false}> {/* Disable default filtering */}
+                                  <CommandInput
+                                    placeholder="Search medicine..."
+                                    value={medicationSearchQuery[index] || ''}
+                                    onValueChange={(search) => {
+                                      setMedicationSearchQuery(prev => ({ ...prev, [index]: search }));
+                                      const token = localStorage.getItem('token');
+                                      if (token) {
+                                        debouncedMedicationSearch(search, index, token);
+                                      }
+                                      // Update form field as user types for immediate validation feedback
+                                      medField.onChange(search); 
+                                    }}
+                                  />
+                                  <CommandList>
+                                    {medicationSearchLoading[index] && <CommandItem disabled>Loading...</CommandItem>}
+                                    <CommandEmpty>
+                                      {medicationSearchQuery[index]?.length >= 2 ? 'No medicine found.' : 'Type at least 2 characters.'}
+                                    </CommandEmpty>
+                                    <CommandGroup heading="Search Results">
+                                      {medicationSearchResults[index]?.map((med) => (
+                                        <CommandItem
+                                          key={med.id}
+                                          value={med.productName} // Use productName for Command's internal value handling
+                                          onSelect={(currentValue) => {
+                                            // When an item is selected from the list
+                                            form.setValue(`medications.${index}.name`, currentValue); // Set the form value to productName
+                                            setMedicationSearchQuery(prev => ({ ...prev, [index]: currentValue })); // Update display query
+                                            setPopoverOpen(prev => ({ ...prev, [index]: false })); // Close popover
+                                          }}
+                                          className="flex flex-col items-start px-2 py-1.5" // Allow multi-line display
+                                        >
+                                          <div className="flex items-center w-full">
+                                            <Check
+                                              className={`mr-2 h-4 w-4 shrink-0 ${ // Ensure Check icon doesn't prevent wrapping
+                                                medField.value === med.productName ? "opacity-100" : "opacity-0"
+                                              }`}
+                                            />
+                                            <span className="font-medium flex-grow">{med.productName}</span> {/* Brand Name */}
+                                          </div>
+                                          {/* Add salt composition and manufacturer below */}
+                                          <div className="ml-6 text-xs text-muted-foreground"> 
+                                            {med.saltComposition} ({med.manufacturer})
+                                          </div>
+                                        </CommandItem>
+                                      ))}
+                                    </CommandGroup>
+                                  </CommandList>
+                                </Command>
+                              </PopoverContent>
+                            </Popover>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {/* Dosage - Adjusted grid span */}
+                      <FormField
+                        control={form.control}
+                        name={`medications.${index}.dosage`}
+                        render={({ field: medField }) => (
+                          <FormItem className="col-span-6 sm:col-span-3 md:col-span-2">
+                            <FormLabel className="mb-1 text-xs font-medium">Dosage*</FormLabel>
                             <FormControl>
-                              <SelectTrigger>
-                                <SelectValue placeholder="Select frequency" />
-                              </SelectTrigger>
+                              <Input placeholder="e.g., 500mg" {...medField} />
                             </FormControl>
-                            <SelectContent>
-                              {FREQUENCY_OPTIONS.map((option) => (
-                                <SelectItem 
-                                  key={option.value} 
-                                  value={option.value}
-                                >
-                                  {option.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          <FormMessage />
-                        </FormItem>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {/* Frequency - Adjusted grid span */}
+                      <FormField
+                        control={form.control}
+                        name={`medications.${index}.frequency`}
+                        render={({ field: medField }) => (
+                          <FormItem className="col-span-6 sm:col-span-3 md:col-span-2">
+                            <FormLabel className="mb-1 text-xs font-medium">Frequency*</FormLabel>
+                            <Select
+                              onValueChange={medField.onChange}
+                              defaultValue={medField.value}
+                            >
+                              <FormControl>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                              </FormControl>
+                              <SelectContent>
+                                {FREQUENCY_OPTIONS.map((option) => (
+                                  <SelectItem 
+                                    key={option.value} 
+                                    value={option.value}
+                                  >
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {/* Duration - Adjusted grid span */}
+                      <FormField
+                        control={form.control}
+                        name={`medications.${index}.duration`}
+                        render={({ field: medField }) => (
+                          <FormItem className="col-span-9 sm:col-span-4 md:col-span-3">
+                            <FormLabel className="mb-1 text-xs font-medium">Duration*</FormLabel>
+                            <FormControl>
+                              <Input placeholder="e.g., 7 days" {...medField} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      {/* Remove Button - Adjusted grid span and positioning */}
+                      {fields.length > 1 && (
+                        <div className="col-span-3 sm:col-span-1 flex items-end pb-1"> {/* Align button to bottom */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="text-muted-foreground hover:bg-destructive/10 hover:text-destructive h-9 w-9"
+                            onClick={() => remove(index)}
+                            aria-label="Remove Medication"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name={`medications.${index}.duration`}
-                      render={({ field: medField }) => (
-                        <FormItem>
-                          <FormLabel className="sr-only">Duration</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Duration" {...medField} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    {fields.length > 1 && (
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-1 right-1 sm:static sm:col-span-1 self-center hover:bg-destructive/10 hover:text-destructive"
-                        onClick={() => remove(index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        <span className="sr-only">Remove Medication</span>
-                      </Button>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ))}
+                </div>
                  <Button
                    type="button"
                    variant="outline"
                    size="sm"
-                   className="mt-2"
+                   className="mt-4" // Add margin top
                    onClick={() => append({ name: "", dosage: "", frequency: "", duration: "" })}
                  >
                    <PlusCircle className="mr-2 h-4 w-4" />
-                   Add Medication
+                   Add Medication Row
                  </Button>
-                 {/* Display error if medication array is empty on submit */}
+                 {/* Display root error for medications array */}
                  {form.formState.errors.medications?.root?.message && (
-                    <p className="text-sm font-medium text-destructive">{form.formState.errors.medications.root.message}</p>
+                    <p className="text-sm font-medium text-destructive pt-2">{form.formState.errors.medications.root.message}</p>
                  )}
               </div>
 
-              {/* Notes */}
-              <FormField
-                control={form.control}
-                name="notes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Additional Notes (Optional)</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        placeholder="Any additional instructions or notes..."
-                        className="resize-none"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {/* Notes Section */}
+              <div className="space-y-2">
+                 <h3 className="text-lg font-medium border-b pb-2">Additional Notes</h3>
+                 <FormField
+                   control={form.control}
+                   name="notes"
+                   render={({ field }) => (
+                     <FormItem>
+                       <FormLabel className="sr-only">Additional Notes (Optional)</FormLabel>
+                       <FormControl>
+                         <Textarea
+                           placeholder="e.g., Advice, next follow-up date..."
+                           className="resize-y min-h-[80px]" // Allow vertical resize
+                           {...field}
+                         />
+                       </FormControl>
+                       <FormMessage />
+                     </FormItem>
+                   )}
+                 />
+              </div>
             </CardContent>
-            <CardFooter className="flex justify-between space-x-4">
+            <CardFooter className="flex justify-end space-x-3 border-t pt-6"> {/* Adjusted padding and alignment */}
               <Button
                 type="button"
                 variant="outline"

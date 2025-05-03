@@ -11,6 +11,7 @@ import {
   ChevronDown, 
   ChevronUp, 
   Clock,
+  FileText, // Added FileText for empty state
   Loader2, 
   RefreshCcw 
 } from "lucide-react";
@@ -207,7 +208,8 @@ const ViewPrescriptions: FC = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col justify-center items-center min-h-screen space-y-4">
+      // Consistent loading state styling
+      <div className="flex flex-col justify-center items-center min-h-[calc(100vh-150px)] space-y-4 p-4"> 
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
         <p className="text-muted-foreground">Loading prescriptions...</p>
       </div>
@@ -215,104 +217,125 @@ const ViewPrescriptions: FC = () => {
   }
 
   return (
-    <div className="container mx-auto p-4 md:p-8 space-y-6">
-      <div className="flex justify-between items-center">
+    // Consistent container padding
+    <div className="container mx-auto p-4 md:p-6 lg:p-8 space-y-6"> 
+      <div className="flex flex-wrap justify-between items-center gap-4"> {/* Added flex-wrap and gap */}
         <h2 className="text-2xl font-bold tracking-tight">My Prescriptions</h2>
         <Button
           variant="outline"
           size="sm"
-          onClick={() => window.location.reload()}
-          className="hidden md:flex"
+          onClick={() => window.location.reload()} // Consider a state refresh instead of full reload
+          // className="hidden md:flex" // Keep visible on smaller screens too
         >
           <RefreshCcw className="mr-2 h-4 w-4" />
-          Refresh
+          Refresh List
         </Button>
       </div>
 
+      {/* Alerts with slightly more margin */}
       {error && (
-        <Alert variant="destructive" className="mb-4">
+        <Alert variant="destructive" className="my-6"> 
           <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
+          <AlertTitle>Error Loading Prescriptions</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
       )}
       {validationWarning && (
-        <Alert className="mb-4 border-yellow-200 bg-yellow-50/50">
-          <AlertCircle className="h-4 w-4 text-yellow-600" />
-          <AlertTitle className="font-medium text-yellow-800">Some prescriptions were skipped</AlertTitle>
-          <AlertDescription className="mt-1 text-yellow-700">
-            {validationWarning} They may be incomplete or have invalid data.
+        <Alert className="my-6 border-yellow-200 bg-yellow-50/50 dark:border-yellow-800 dark:bg-yellow-900/30">
+          <AlertCircle className="h-4 w-4 text-yellow-600 dark:text-yellow-400" />
+          <AlertTitle className="font-medium text-yellow-800 dark:text-yellow-200">Data Warning</AlertTitle>
+          <AlertDescription className="mt-1 text-yellow-700 dark:text-yellow-300">
+            {validationWarning} Some prescriptions might be incomplete or have invalid data.
           </AlertDescription>
         </Alert>
       )}
 
       {prescriptions.length === 0 && !loading && !error ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center h-40">
-            <p className="text-muted-foreground mb-4">No prescriptions found.</p>
+        <Card className="border-dashed"> {/* Dashed border for empty state */}
+          <CardContent className="flex flex-col items-center justify-center h-48 p-6 text-center"> {/* Increased height and padding */}
+            <FileText className="h-12 w-12 text-muted-foreground mb-4" /> {/* Added icon */}
+            <p className="text-lg font-medium text-muted-foreground mb-2">No prescriptions found.</p>
+            <p className="text-sm text-muted-foreground mb-4">Your prescriptions will appear here once added.</p>
             <Button variant="outline" onClick={() => window.location.reload()}>
               <RefreshCcw className="mr-2 h-4 w-4" />
-              Refresh
+              Try Refreshing
             </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="space-y-4">
           {prescriptions.map((prescription) => (
-            <Card key={prescription.id} className="transition-all duration-200 hover:shadow-md">
-              {/* Simplified Card Header */}
-              <CardHeader className="cursor-pointer" onClick={() => toggleCard(prescription.id)}>
-                <div className="flex justify-between items-center">
-                  <div className="space-y-1">
-                    <CardTitle className="text-lg">
+            // Added border and increased shadow on hover
+            <Card key={prescription.id} className="transition-all duration-200 border border-border/40 hover:shadow-lg"> 
+              <CardHeader 
+                className="cursor-pointer p-4 hover:bg-muted/50" // Adjusted padding and hover bg
+                onClick={() => toggleCard(prescription.id)}
+              >
+                <div className="flex justify-between items-start gap-4"> {/* Use items-start for better alignment */}
+                  <div className="space-y-1.5 flex-grow"> {/* Allow text to wrap */}
+                    <CardTitle className="text-lg leading-tight"> {/* Adjusted size/leading */}
                       Prescription from Dr. {getIdentifierName(prescription.doctor)}
                     </CardTitle>
-                    <CardDescription className="space-y-1 text-xs">
+                    <CardDescription className="text-xs text-muted-foreground space-y-0.5"> {/* Adjusted spacing */}
                       <div className="flex items-center">
-                        <Clock className="mr-1 h-3 w-3" />
+                        <Clock className="mr-1.5 h-3 w-3" /> {/* Adjusted margin */}
                         {formatDate(prescription.createdAt)}
                       </div>
-                      <div className="flex items-center text-primary/80">
-                        <span className="font-medium">Patient ID: {prescription.patient.shortId}</span>
+                      {/* Show patient name/ID based on user type? For now, always show patient ID */}
+                      <div className="flex items-center text-primary/90 dark:text-primary/70">
+                        <span className="font-medium">Patient: {prescription.patient.shortId}</span>
                       </div>
                     </CardDescription>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Badge variant={getPrescriptionStatus(prescription.createdAt).variant}>
+                  <div className="flex flex-col items-end space-y-2 flex-shrink-0"> {/* Column layout for badge/icon */}
+                    <Badge variant={getPrescriptionStatus(prescription.createdAt).variant} className="text-xs"> {/* Smaller badge text */}
                       {getPrescriptionStatus(prescription.createdAt).label}
                     </Badge>
                     {expandedCards.has(prescription.id) ? (
-                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                      <ChevronUp className="h-5 w-5 text-muted-foreground" /> // Slightly larger icon
                     ) : (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
                     )}
                   </div>
                 </div>
               </CardHeader>
-              {/* Quick Overview Card Content */}
-              <CardContent className={`transition-all duration-200 ${expandedCards.has(prescription.id) ? 'block' : 'hidden'}`}>
-                <div className="flex flex-col gap-4">
-                  {/* Summary */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
+              {/* Content with adjusted padding */}
+              <CardContent 
+                className={`transition-all duration-300 ease-in-out overflow-hidden ${expandedCards.has(prescription.id) ? 'max-h-[1000px] opacity-100 p-4 pt-0' : 'max-h-0 opacity-0 p-0'}`} // Smooth expand/collapse
+              >
+                <div className="border-t pt-4 flex flex-col gap-4"> {/* Added border-t here */}
+                  {/* Summary Section */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
                     <div>
-                      <p className="text-muted-foreground mb-1">Doctor</p>
+                      <p className="text-muted-foreground text-xs mb-0.5">Prescribing Doctor</p>
                       <p className="font-medium">{getIdentifierName(prescription.doctor)}</p>
                       {isDoctor(prescription.doctor) && (
                         <>
-                          <p className="text-xs text-primary/80">ID: {prescription.doctor.shortId}</p>
+                          <p className="text-xs text-primary/80 dark:text-primary/70">ID: {prescription.doctor.shortId}</p>
                           <p className="text-xs text-muted-foreground">{prescription.doctor.specialization}</p>
                         </>
                       )}
                     </div>
-                    <div className="text-right">
-                      <p className="text-muted-foreground mb-1">Medications</p>
-                      <p className="font-medium">{prescription.medications.length} items</p>
+                    <div className="sm:text-right">
+                      <p className="text-muted-foreground text-xs mb-0.5">Medications Prescribed</p>
+                      <p className="font-medium">{prescription.medications.length} item(s)</p>
                     </div>
+                     {/* Optionally add Patient details if needed */}
+                     {/* <div>
+                       <p className="text-muted-foreground text-xs mb-0.5">Patient</p>
+                       <p className="font-medium">{getIdentifierName(prescription.patient)}</p>
+                       {isPatient(prescription.patient) && (
+                         <p className="text-xs text-muted-foreground">Age: {prescription.patient.age}, Gender: {prescription.patient.gender}</p>
+                       )}
+                     </div> */}
                   </div>
 
                   {/* PDF Component Area */}
-                  <div className="border-t pt-4 block"> {/* Ensure it's a block container */}
-                    <PrescriptionPDF prescription={prescription} />
+                  <div className="mt-2"> {/* Add margin-top */}
+                    <h4 className="text-sm font-medium mb-2 text-muted-foreground">Prescription Details (PDF View)</h4>
+                    <div className="border rounded-md overflow-hidden"> {/* Add border around PDF */}
+                      <PrescriptionPDF prescription={prescription} />
+                    </div>
                   </div>
                 </div>
               </CardContent>
