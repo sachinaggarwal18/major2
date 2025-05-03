@@ -6,6 +6,9 @@ import { authenticate, isPatient, isDoctor } from '../middleware/auth';
 import { AuthRequest, PatientSignupRequest, LoginRequest } from '../types/express';
 import prisma from '../utils/prisma';
 import { generatePatientId } from '../utils/generateId';
+import upload from '../config/multer'; // Import multer configuration
+import fs from 'fs'; // Import fs for file deletion
+import path from 'path'; // Import path for file deletion
 
 const router = express.Router();
 
@@ -472,5 +475,126 @@ router.get(
     }
   }
 );
+
+// ==================== Upload Prescription File ====================
+router.post(
+  '/upload-prescription',
+  authenticate,
+  isPatient,
+  upload.single('prescriptionFile'), // Use multer middleware for single file upload named 'prescriptionFile'
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'Authentication required' });
+      return;
+    }
+    if (!req.file) {
+      res.status(400).json({ message: 'No file uploaded' });
+      return;
+    }
+
+    const { notes } = req.body; // Optional notes from the form
+
+    try {
+      const uploadedPrescription = await prisma.uploadedPrescription.create({
+        data: {
+          patientId: req.user.id,
+          filename: req.file.originalname,
+          storagePath: req.file.path, // Store the path where multer saved the file
+          fileType: req.file.mimetype,
+          notes: notes || null,
+        },
+      });
+
+      res.status(201).json({
+        message: 'Prescription uploaded successfully',
+        prescription: uploadedPrescription,
+      });
+    } catch (error) {
+      console.error('Error uploading prescription:', error);
+      // If database write fails, attempt to delete the orphaned file
+      fs.unlink(req.file.path, (err) => {
+        if (err) console.error('Error deleting orphaned file:', err);
+      });
+      res.status(500).json({ message: 'Server error during upload' });
+    }
+  }
+);
+
+// ==================== Get Uploaded Prescriptions for Patient ====================
+router.get(
+  '/uploaded-prescriptions',
+  authenticate,
+  isPatient,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'Authentication required' });
+      return;
+    }
+
+    try {
+      const prescriptions = await prisma.uploadedPrescription.findMany({
+        where: { patientId: req.user.id },
+        orderBy: { uploadDate: 'desc' },
+      });
+      res.status(200).json({ prescriptions });
+    } catch (error) {
+      console.error('Error fetching uploaded prescriptions:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+);
+
+// ==================== Delete Uploaded Prescription ====================
+router.delete(
+  '/uploaded-prescriptions/:id',
+  authenticate,
+  isPatient,
+  async (req: AuthRequest, res: Response): Promise<void> => {
+    if (!req.user?.id) {
+      res.status(401).json({ message: 'Authentication required' });
+      return;
+    }
+
+    const { id } = req.params;
+
+    try {
+      // Find the prescription record to get the file path
+      const prescription = await prisma.uploadedPrescription.findUnique({
+        where: { id },
+      });
+
+      if (!prescription) {
+        res.status(404).json({ message: 'Uploaded prescription not found' });
+        return;
+      }
+
+      // Check if the prescription belongs to the logged-in patient
+      if (prescription.patientId !== req.user.id) {
+        res.status(403).json({ message: 'Not authorized to delete this prescription' });
+        return;
+      }
+
+      // Delete the file from storage
+      fs.unlink(prescription.storagePath, async (err) => {
+        if (err) {
+          // Log error but proceed to delete DB record anyway, maybe file was already deleted
+          console.error('Error deleting file from storage:', err);
+        }
+        
+        // Delete the record from the database
+        await prisma.uploadedPrescription.delete({
+          where: { id },
+        });
+
+        res.status(200).json({ message: 'Uploaded prescription deleted successfully' });
+      });
+
+    } catch (error) {
+      console.error('Error deleting uploaded prescription:', error);
+      res.status(500).json({ message: 'Server error' });
+    }
+  }
+);
+
 
 export default router;

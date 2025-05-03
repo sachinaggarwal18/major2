@@ -1,12 +1,26 @@
-import { FC, useState } from "react";
+import { FC, useState, useEffect, useCallback } from "react"; // Added useEffect, useCallback
 import { useNavigate } from "react-router-dom";
-import { useForm, useFieldArray } from "react-hook-form";
+import { useForm, useFieldArray, useWatch } from "react-hook-form"; // Added useWatch
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { PlusCircle, Trash2, Loader2, Search } from "lucide-react";
+import { PlusCircle, Trash2, Loader2, Search, Check, ChevronsUpDown } from "lucide-react"; // Added Check, ChevronsUpDown
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+// Import Command components from shadcn/ui
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Card,
   CardContent,
@@ -25,7 +39,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { prescriptionService, patientService } from "../services/api";
+// Import medicationService
+import { prescriptionService, patientService, medicationService } from "../services/api"; 
 
 import {
   Select,
@@ -95,6 +110,47 @@ const CreatePrescription: FC = () => {
   const [patientName, setPatientName] = useState<string | null>(null);
   const [isSearching, setIsSearching] = useState<boolean>(false);
   const [lookupError, setLookupError] = useState<string | null>(null);
+  
+  // State for medication search results and loading status for each row
+  const [medicationSearchResults, setMedicationSearchResults] = useState<Record<number, { id: string; name: string }[]>>({});
+  const [medicationSearchLoading, setMedicationSearchLoading] = useState<Record<number, boolean>>({});
+  const [medicationSearchQuery, setMedicationSearchQuery] = useState<Record<number, string>>({});
+  const [popoverOpen, setPopoverOpen] = useState<Record<number, boolean>>({}); // Track popover state per row
+
+  // Debounce function
+  const debounce = <F extends (...args: any[]) => any>(func: F, waitFor: number) => {
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  
+    return (...args: Parameters<F>): Promise<ReturnType<F>> =>
+      new Promise(resolve => {
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+        }
+  
+        timeoutId = setTimeout(() => resolve(func(...args)), waitFor);
+      });
+  };
+
+  // Debounced medication search function
+  const debouncedMedicationSearch = useCallback(
+    debounce(async (query: string, index: number, token: string) => {
+      if (query.length < 2) {
+        setMedicationSearchResults(prev => ({ ...prev, [index]: [] }));
+        return;
+      }
+      setMedicationSearchLoading(prev => ({ ...prev, [index]: true }));
+      try {
+        const response = await medicationService.searchMedications(query, token);
+        setMedicationSearchResults(prev => ({ ...prev, [index]: response.medications || [] }));
+      } catch (error) {
+        console.error(`Error searching medication for index ${index}:`, error);
+        setMedicationSearchResults(prev => ({ ...prev, [index]: [] })); // Clear results on error
+      } finally {
+        setMedicationSearchLoading(prev => ({ ...prev, [index]: false }));
+      }
+    }, 300), // 300ms debounce delay
+    []
+  );
 
   // Define the submit handler
   const onSubmit = async (values: PrescriptionFormValues): Promise<void> => {
@@ -253,11 +309,71 @@ const CreatePrescription: FC = () => {
                       control={form.control}
                       name={`medications.${index}.name`}
                       render={({ field: medField }) => (
-                        <FormItem className="sm:col-span-2">
+                        <FormItem className="sm:col-span-2 flex flex-col">
                           <FormLabel className="sr-only">Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Medicine Name" {...medField} />
-                          </FormControl>
+                          <Popover open={popoverOpen[index]} onOpenChange={(isOpen) => setPopoverOpen(prev => ({ ...prev, [index]: isOpen }))}>
+                            <PopoverTrigger asChild>
+                              <FormControl>
+                                <Button
+                                  variant="outline"
+                                  role="combobox"
+                                  aria-expanded={popoverOpen[index]}
+                                  className="w-full justify-between font-normal"
+                                >
+                                  {medField.value
+                                    ? medicationSearchResults[index]?.find(
+                                        (med) => med.name === medField.value
+                                      )?.name ?? medField.value // Show selected value or typed value
+                                    : "Select or type medicine..."}
+                                  <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                                </Button>
+                              </FormControl>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-[--radix-popover-trigger-width] max-h-[--radix-popover-content-available-height] p-0">
+                              <Command shouldFilter={false}> {/* Disable default filtering */}
+                                <CommandInput
+                                  placeholder="Search medicine..."
+                                  value={medicationSearchQuery[index] || ''}
+                                  onValueChange={(search) => {
+                                    setMedicationSearchQuery(prev => ({ ...prev, [index]: search }));
+                                    const token = localStorage.getItem('token');
+                                    if (token) {
+                                      debouncedMedicationSearch(search, index, token);
+                                    }
+                                    // Also update the form field value as user types if needed, or only on select
+                                    // medField.onChange(search); // Optional: update form value while typing
+                                  }}
+                                />
+                                <CommandList>
+                                  {medicationSearchLoading[index] && <CommandItem disabled>Loading...</CommandItem>}
+                                  <CommandEmpty>
+                                    {medicationSearchQuery[index]?.length >= 2 ? 'No medicine found.' : 'Type at least 2 characters.'}
+                                  </CommandEmpty>
+                                  <CommandGroup>
+                                    {medicationSearchResults[index]?.map((med) => (
+                                      <CommandItem
+                                        key={med.id}
+                                        value={med.name} // Use name for Command's internal value handling
+                                        onSelect={(currentValue) => {
+                                          // When an item is selected from the list
+                                          form.setValue(`medications.${index}.name`, currentValue === medField.value ? "" : currentValue); // Set the form value
+                                          setMedicationSearchQuery(prev => ({ ...prev, [index]: currentValue })); // Update display query
+                                          setPopoverOpen(prev => ({ ...prev, [index]: false })); // Close popover
+                                        }}
+                                      >
+                                        <Check
+                                          className={`mr-2 h-4 w-4 ${
+                                            medField.value === med.name ? "opacity-100" : "opacity-0"
+                                          }`}
+                                        />
+                                        {med.name}
+                                      </CommandItem>
+                                    ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
                           <FormMessage />
                         </FormItem>
                       )}

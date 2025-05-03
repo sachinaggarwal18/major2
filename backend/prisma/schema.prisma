@@ -38,8 +38,9 @@ model Patient {
   address        String
   medicalHistory String?
   createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  prescriptions  Prescription[]
+  updatedAt             DateTime               @updatedAt
+  prescriptions         Prescription[]
+  uploadedPrescriptions UploadedPrescription[] // Add relation to uploaded prescriptions
 
   @@map("patient")
 }
@@ -76,4 +77,30 @@ enum Gender {
   Male
   Female
   Other
+}
+
+// New model for master list of medications
+model MedicationMaster {
+  id          String   @id @default(uuid())
+  name        String   @unique // Standardized name
+  description String?  // Optional description, e.g., common uses
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("medication_master")
+}
+
+// New model for storing uploaded prescription files
+model UploadedPrescription {
+  id        String   @id @default(uuid())
+  patientId String
+  filename  String   // Original filename
+  storagePath String // Path or key where the file is stored (e.g., local path or S3 key)
+  fileType  String   // e.g., 'application/pdf', 'image/jpeg'
+  uploadDate DateTime @default(now())
+  notes     String?  // Optional notes by the patient
+
+  patient Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("uploaded_prescription")
 }
