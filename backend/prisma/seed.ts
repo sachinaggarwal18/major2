@@ -17,10 +17,10 @@ interface CsvRow {
 }
 
 async function main() {
-  console.log('Starting medication seeding process...');
+  console.log('Starting medication seeding process using cleaned data...');
 
   const medicationsToCreate: any[] = []; // Use 'any' for flexibility during parsing
-  const csvFilePath = path.resolve(__dirname, '../../medicine_data.csv'); // Path relative to this script
+  const csvFilePath = path.resolve(__dirname, '../../medicine_data_cleaned.csv'); // Use the cleaned CSV file
 
   // Check if CSV file exists
   if (!fs.existsSync(csvFilePath)) {
