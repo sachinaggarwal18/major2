@@ -28,6 +28,7 @@ export interface Doctor {
 }
 
 export interface Medication {
+  id: string; // Add the ID field
   name: string;
   dosage: string;
   frequency: string;

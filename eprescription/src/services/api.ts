@@ -147,3 +147,62 @@ export const medicationService = {
   searchMedications: (query: string, token: string): Promise<{ medications: MedicationSearchResult[] }> => 
     apiCall<undefined, { medications: MedicationSearchResult[] }>(`/medications/search?query=${encodeURIComponent(query)}`, 'GET', undefined, token),
 };
+
+// Define types for Adherence Service
+interface AdherenceLogRequest {
+  prescriptionId: string;
+  medicationId: string;
+  takenAt?: string; // ISO 8601 string, optional
+  notes?: string;
+}
+
+// Export AdherenceLog interface
+export interface AdherenceLog {
+  id: string;
+  patientId: string;
+  prescriptionId: string;
+  medicationId: string;
+  takenAt: string; // ISO 8601 string
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  medication?: { // Included from backend
+    name: string;
+    dosage: string;
+  };
+}
+
+interface AdherenceHistoryResponse {
+  logs: AdherenceLog[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
+interface AdherenceHistoryParams {
+  prescriptionId?: string;
+  medicationId?: string;
+  limit?: number;
+  page?: number;
+}
+
+// Adherence Service
+export const adherenceService = {
+  logAdherence: (data: AdherenceLogRequest, token: string): Promise<{ message: string; logEntry: AdherenceLog }> =>
+    apiCall<AdherenceLogRequest, { message: string; logEntry: AdherenceLog }>('/adherence/log', 'POST', data, token),
+
+  getAdherenceHistory: (params: AdherenceHistoryParams, token: string): Promise<AdherenceHistoryResponse> => {
+    const queryParams = new URLSearchParams();
+    if (params.prescriptionId) queryParams.append('prescriptionId', params.prescriptionId);
+    if (params.medicationId) queryParams.append('medicationId', params.medicationId);
+    if (params.limit) queryParams.append('limit', params.limit.toString());
+    if (params.page) queryParams.append('page', params.page.toString());
+    
+    const queryString = queryParams.toString();
+    const endpoint = `/adherence/history${queryString ? '?' + queryString : ''}`;
+    return apiCall<undefined, AdherenceHistoryResponse>(endpoint, 'GET', undefined, token);
+  },
+};

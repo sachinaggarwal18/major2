@@ -1,7 +1,7 @@
 import express, { Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { authenticate, isDoctor } from '../middleware/auth';
-import { AuthRequest, PrescriptionCreateRequest } from '../types/express';
+import { PrescriptionCreateRequest } from '../types/express';
 import prisma from '../utils/prisma';
 
 // Define medication interface to prevent 'any' type
@@ -36,7 +36,7 @@ router.post(
     }
 
     const { patientShortId, diagnosis, medications, notes, date } = req.body;
-    const doctorId = (req as AuthRequest).user?.id;
+    const doctorId = (req as Request).user?.id;
 
     if (!doctorId) {
       res.status(401).json({ message: 'Doctor ID not found in token' });
@@ -91,10 +91,10 @@ router.post(
 );
 
 // ==================== Get All Prescriptions ====================
-router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
-    const userRole = req.user?.role;
+    const userRole = req.user?.type;
     
     if (!userId || !userRole) {
       res.status(401).json({ message: 'Authentication required' });
@@ -178,7 +178,7 @@ router.get('/', authenticate, async (req: AuthRequest, res: Response): Promise<v
 });
 
 // ==================== Get Prescription by ID ====================
-router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/:id', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const prescription = await prisma.prescription.findUnique({
       where: { id: req.params.id },
@@ -208,7 +208,7 @@ router.get('/:id', authenticate, async (req: AuthRequest, res: Response): Promis
     
     // Check if the user is authorized to view this prescription
     const userId = req.user?.id;
-    const userRole = req.user?.role;
+    const userRole = req.user?.type;
     
     const isAuthorized = 
       (userRole === 'doctor' && prescription.doctorId === userId) || 
@@ -249,7 +249,7 @@ router.put(
 
     const { id } = req.params;
     const { diagnosis, medications, notes } = req.body;
-    const doctorId = (req as AuthRequest).user?.id;
+    const doctorId = req.user?.id;
 
     if (!doctorId) {
       res.status(401).json({ message: 'Authentication required' });
@@ -352,7 +352,7 @@ router.delete(
   isDoctor,
   async (req: Request, res: Response): Promise<void> => {
     const { id } = req.params;
-    const doctorId = (req as AuthRequest).user?.id;
+    const doctorId = req.user?.id;
 
     if (!doctorId) {
       res.status(401).json({ message: 'Authentication required' });
@@ -400,10 +400,10 @@ router.delete(
 router.get(
   '/filter',
   authenticate,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const userRole = req.user?.role;
+      const userRole = req.user?.type;
       
       if (!userId || !userRole) {
         res.status(401).json({ message: 'Authentication required' });
@@ -520,7 +520,7 @@ router.get(
   '/patient/:patientId',
   authenticate,
   isDoctor,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const { patientId } = req.params;
     const doctorId = req.user?.id;
 
@@ -564,10 +564,10 @@ router.get(
 router.get(
   '/recent',
   authenticate,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.id;
-      const userRole = req.user?.role;
+      const userRole = req.user?.type;
       const limit = parseInt(req.query.limit as string) || 5; // Default to 5 recent prescriptions
       
       if (!userId || !userRole) {
@@ -620,7 +620,7 @@ router.get(
   '/statistics',
   authenticate,
   isDoctor,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const doctorId = req.user?.id;
     
     if (!doctorId) {

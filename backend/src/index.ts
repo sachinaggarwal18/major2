@@ -9,7 +9,8 @@ import logger, { requestLoggingMiddleware } from './config/logger';
 import patientRoutes from './routes/patient.route';
 import doctorRoutes from './routes/doctor.route';
 import prescriptionRoutes from './routes/prescription.route';
-import medicationRoutes from './routes/medication.route'; // Import the new medication routes
+import medicationRoutes from './routes/medication.route';
+import adherenceRoutes from './routes/adherence.route'; // Import adherence routes
 
 // Initialize environment variables
 dotenv.config();
@@ -79,7 +80,8 @@ app.use(express.json()); // To handle JSON data
 app.use('/patients', patientRoutes);
 app.use('/doctors', doctorRoutes);
 app.use('/prescriptions', prescriptionRoutes);
-app.use('/medications', medicationRoutes); // Register the new medication routes
+app.use('/medications', medicationRoutes);
+app.use('/adherence', adherenceRoutes); // Register adherence routes
 
 // Handle 404 errors for undefined routes
 app.use(notFoundHandler);

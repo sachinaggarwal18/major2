@@ -3,7 +3,7 @@ import { body, validationResult } from 'express-validator';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { authenticate, isDoctor } from '../middleware/auth';
-import { AuthRequest, DoctorSignupRequest, LoginRequest } from '../types/express';
+import { DoctorSignupRequest, LoginRequest } from '../types/express';
 import prisma from '../utils/prisma';
 import { generateDoctorId } from '../utils/generateId';
 
@@ -153,7 +153,7 @@ router.post(
 );
 
 // ==================== Get Doctor Profile ====================
-router.get('/profile', authenticate, isDoctor, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/profile', authenticate, isDoctor, async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
@@ -202,7 +202,7 @@ router.put(
       .withMessage('Phone number must be valid'),
     body('hospitalAffiliation').optional(),
   ],
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
@@ -275,7 +275,7 @@ router.put(
       .isLength({ min: 5 })
       .withMessage('New password must be at least 5 characters long')
   ],
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
@@ -335,7 +335,7 @@ router.delete(
   '/account',
   authenticate,
   isDoctor,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
       return;

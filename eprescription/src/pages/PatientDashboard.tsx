@@ -1,7 +1,7 @@
-import { FC, useEffect, useState, ChangeEvent, FormEvent } from "react"; // Added ChangeEvent, FormEvent
+import { FC, useEffect, useState, ChangeEvent, FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Patient } from "../types/models";
-import { patientService } from "../services/api"; 
+import { Patient, Prescription } from "../types/models"; // Removed Medication import
+import { patientService, prescriptionService, adherenceService, AdherenceLog } from "../services/api"; // Added adherenceService, AdherenceLog
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,9 @@ import {
   Phone, 
   MapPin, 
   Clock,
-  Loader2
+  Loader2,
+  Pill,
+  CheckCircle // Added CheckCircle icon
 } from "lucide-react";
 
 // Define UploadedPrescription type (matching the one in api.ts)
@@ -47,6 +49,101 @@ interface PatientResponse {
   patient: Patient;
 }
 
+// Define props interface for MedicationList outside the main component
+interface MedicationListProps {
+  prescription: Prescription;
+  loggingMedicationId: string | null;
+  handleLogDose: (prescriptionId: string, medicationId: string) => void;
+}
+
+// Define MedicationList component outside the main component
+const MedicationList: FC<MedicationListProps> = ({
+  prescription,
+  loggingMedicationId,
+  handleLogDose,
+}) => {
+  if (!prescription.medications || prescription.medications.length === 0) {
+    return <p className="text-sm text-muted-foreground">No medications listed for this prescription.</p>;
+  }
+
+  return (
+    <ul className="space-y-2">
+      {prescription.medications.map((med) => {
+        // Extracted icon logic for the button
+        const logButtonIcon = loggingMedicationId === med.id ? (
+          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+        ) : (
+          <CheckCircle className="mr-1 h-3 w-3 text-green-600" />
+        );
+
+        return (
+          <li key={med.id} className="flex items-start justify-between gap-4 p-2 border rounded bg-background">
+            <div className="flex items-center gap-2">
+              <Pill className="h-4 w-4 text-primary flex-shrink-0" />
+              <div>
+                <p className="font-medium text-sm">{med.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {med.dosage} - {med.frequency.replace(/_/g, ' ')} - {med.duration}
+                </p>
+              </div>
+            </div>
+            {/* Adherence Log Button */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleLogDose(prescription.id, med.id)}
+              disabled={loggingMedicationId === med.id}
+              className="text-xs"
+            >
+              {logButtonIcon} {/* Use the extracted variable */}
+              Log Dose
+            </Button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+};
+
+// Define props interface for LogSuccessAlert outside the main component
+interface LogSuccessAlertProps {
+  message: string | null;
+  prescription: Prescription;
+}
+
+// Define LogSuccessAlert component outside the main component
+const LogSuccessAlert: FC<LogSuccessAlertProps> = ({ message, prescription }) => {
+  if (!message || !prescription.medications?.some(m => message.includes(m.name))) {
+    return null;
+  }
+  return (
+    <Alert variant="default" className="mt-3 bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200 text-xs p-2">
+      <CheckCircle className="h-4 w-4" />
+      <AlertDescription>{message}</AlertDescription>
+    </Alert>
+  );
+};
+
+// Define props interface for LogErrorAlert outside the main component
+interface LogErrorAlertProps {
+  error: string | null;
+  prescription: Prescription;
+  loggingMedicationId: string | null;
+}
+
+// Define LogErrorAlert component outside the main component
+const LogErrorAlert: FC<LogErrorAlertProps> = ({ error, prescription, loggingMedicationId }) => {
+  if (!error || !prescription.medications?.some(m => m.id === loggingMedicationId)) {
+    return null;
+  }
+  return (
+    <Alert variant="destructive" className="mt-3 text-xs p-2">
+      <AlertCircle className="h-4 w-4" />
+      <AlertDescription>{error}</AlertDescription>
+    </Alert>
+  );
+};
+
 const PatientDashboard: FC = () => {
   const [data, setData] = useState<PatientResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true); // For initial profile load
@@ -62,7 +159,28 @@ const PatientDashboard: FC = () => {
   const [uploadNotes, setUploadNotes] = useState<string>("");
   const [listLoading, setListLoading] = useState<boolean>(false); // For loading the list
   const [listError, setListError] = useState<string | null>(null); // For list loading error
-  const [deletingId, setDeletingId] = useState<string | null>(null); // Track which item is being deleted
+  const [deletingId, setDeletingId] = useState<string | null>(null); // Track which uploaded item is being deleted
+
+  // State for digital prescriptions
+  const [digitalPrescriptions, setDigitalPrescriptions] = useState<Prescription[]>([]);
+  const [digitalLoading, setDigitalLoading] = useState<boolean>(false);
+  const [digitalError, setDigitalError] = useState<string | null>(null);
+
+  // State for adherence logging
+  const [loggingMedicationId, setLoggingMedicationId] = useState<string | null>(null);
+  const [logError, setLogError] = useState<string | null>(null);
+  const [logSuccessMessage, setLogSuccessMessage] = useState<string | null>(null);
+
+  // State for adherence history
+  const [adherenceLogs, setAdherenceLogs] = useState<AdherenceLog[]>([]);
+  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
+  const [historyPagination, setHistoryPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10, // Show 10 logs per page initially
+    totalPages: 1,
+  });
 
   // Function to fetch uploaded prescriptions
   const fetchUploadedPrescriptions = async (token: string): Promise<void> => {
@@ -79,31 +197,68 @@ const PatientDashboard: FC = () => {
     }
   };
 
+  // Function to fetch adherence history
+  const fetchAdherenceHistory = async (token: string, page = 1, limit = 10): Promise<void> => {
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const response = await adherenceService.getAdherenceHistory({ page, limit }, token);
+      setAdherenceLogs(response.logs || []);
+      setHistoryPagination(response.pagination || { total: 0, page: 1, limit: 10, totalPages: 1 });
+    } catch (err) {
+      console.error('Error fetching adherence history:', err);
+      setHistoryError(err instanceof Error ? err.message : 'Failed to load adherence history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  // Function to fetch digital prescriptions
+  const fetchDigitalPrescriptions = async (token: string): Promise<void> => {
+    setDigitalLoading(true);
+    setDigitalError(null);
+    try {
+      // prescriptionService.getAllPrescriptions fetches prescriptions for the logged-in patient (based on token)
+      const response = await prescriptionService.getAllPrescriptions(token); 
+      // Ensure response is an array, default to empty array if not
+      setDigitalPrescriptions(Array.isArray(response) ? response : []); 
+    } catch (err) {
+      console.error('Error fetching digital prescriptions:', err);
+      setDigitalError(err instanceof Error ? err.message : 'Failed to load digital prescriptions');
+    } finally {
+      setDigitalLoading(false);
+    }
+  };
+
   useEffect(() => {
     const fetchPatientData = async (): Promise<void> => {
       setLoading(true); // Start initial loading
       setError(null);
       setListError(null); // Clear list error too
+      setDigitalError(null); // Clear digital prescription error
+      setHistoryError(null); // Clear history error
       try {
         const token = localStorage.getItem('token');
         if (!token || localStorage.getItem('userType') !== 'patient') {
           throw new Error('Authentication required');
         }
 
-        // Fetch profile and uploaded prescriptions concurrently
+        // Fetch profile, uploaded prescriptions, digital prescriptions, and history concurrently
         const [profileResponse] = await Promise.all([
           patientService.getProfile(token),
-          fetchUploadedPrescriptions(token) // Fetch the list
+          fetchUploadedPrescriptions(token), // Fetch the uploaded list
+          fetchDigitalPrescriptions(token), // Fetch digital prescriptions
+          fetchAdherenceHistory(token, historyPagination.page, historyPagination.limit) // Fetch initial history
         ]);
         
         console.log('API Response (Profile):', profileResponse);
-        
+
         if (!profileResponse?.patient?.id) {
           throw new Error('Invalid patient data received');
         }
 
         setData(profileResponse);
-      } catch (error) { // Catch errors from either profile fetch or initial list fetch
+      } catch (error) { // Catch errors from any of the fetches
         console.error('Error fetching patient data:', error);
         const errorMessage = error instanceof Error ? error.message : 'Failed to load patient data';
         setError(errorMessage); // Set general error for profile load failure
@@ -113,7 +268,7 @@ const PatientDashboard: FC = () => {
           // No need to navigate here, the error display handles the login button
         }
       } finally {
-        setLoading(false); // Finish initial loading
+        setLoading(false); // Finish initial loading (covers profile, uploaded, and digital)
       }
     };
 
@@ -128,7 +283,7 @@ const PatientDashboard: FC = () => {
 
   // Handler for file input change
   const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files && event.target.files[0]) {
+    if (event.target.files?.[0]) {
       setSelectedFile(event.target.files[0]);
       setUploadError(null); // Clear previous error on new file selection
       setUploadSuccess(null);
@@ -174,9 +329,43 @@ const PatientDashboard: FC = () => {
     } catch (err) {
       console.error('Error uploading file:', err);
       const apiError = err as { message?: string };
-      setUploadError(apiError?.message || 'Failed to upload file.');
+      setUploadError(apiError?.message ?? 'Failed to upload file.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  // Handler for logging a dose
+  const handleLogDose = async (prescriptionId: string, medicationId: string) => {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      setError("Authentication required. Please log in again.");
+      return;
+    }
+
+    setLoggingMedicationId(medicationId); // Indicate loading state for this specific button
+    setLogError(null);
+    setLogSuccessMessage(null);
+
+    try {
+      const response = await adherenceService.logAdherence({ prescriptionId, medicationId }, token);
+      setLogSuccessMessage(`Logged dose for ${response.logEntry.medication?.name ?? 'medication'} successfully!`);
+      
+      // Refresh adherence history after logging
+      fetchAdherenceHistory(token, 1, historyPagination.limit); // Go back to page 1 to see the latest entry
+      
+      // Clear success message after a few seconds
+      setTimeout(() => setLogSuccessMessage(null), 3000);
+
+    } catch (err) {
+      console.error('Error logging dose:', err);
+      const apiError = err as { message?: string; errors?: { msg: string }[] };
+      const errorMsg = apiError.errors?.[0]?.msg ?? apiError.message ?? 'Failed to log dose.';
+      setLogError(errorMsg);
+      // Clear error message after a few seconds
+      setTimeout(() => setLogError(null), 5000);
+    } finally {
+      setLoggingMedicationId(null); // Clear loading state for this button
     }
   };
 
@@ -202,7 +391,7 @@ const PatientDashboard: FC = () => {
     } catch (err) {
       console.error('Error deleting prescription:', err);
       const apiError = err as { message?: string };
-      setListError(apiError?.message || 'Failed to delete prescription.');
+      setListError(apiError?.message ?? 'Failed to delete prescription.');
     } finally {
       setDeletingId(null); // Clear deleting indicator
     }
@@ -247,6 +436,148 @@ const PatientDashboard: FC = () => {
       month: 'short', 
       year: 'numeric' 
     });
+  };
+
+  // Helper function for date and time formatting
+  const formatDateTime = (dateString: string | Date) => {
+    return new Date(dateString).toLocaleString('en-IN', { 
+      day: '2-digit', 
+      month: 'short', 
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+  };
+
+  // Handler for changing history page
+  const handleHistoryPageChange = (newPage: number) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchAdherenceHistory(token, newPage, historyPagination.limit);
+    }
+  };
+
+  // Helper function to render digital prescriptions section
+  const renderDigitalPrescriptions = () => {
+    if (digitalLoading) {
+      return (
+        <div className="flex items-center justify-center p-6">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-muted-foreground">Loading prescriptions...</span>
+        </div>
+      );
+    }
+  
+    if (digitalError) {
+      return (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Loading Prescriptions</AlertTitle>
+          <AlertDescription>{digitalError}</AlertDescription>
+        </Alert>
+      );
+    }
+  
+    if (digitalPrescriptions.length === 0) {
+      return (
+        <p className="text-center text-muted-foreground p-6">No digital prescriptions found.</p>
+      );
+    }
+  
+    return (
+      <div className="space-y-6">
+        {digitalPrescriptions.map((prescription) => (
+          <Card key={prescription.id} className="border-border/50">
+            <CardHeader className="bg-muted/30 p-4 border-b">
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle className="text-lg">Diagnosis: {prescription.diagnosis}</CardTitle>
+                  <CardDescription className="text-xs mt-1">
+                    Prescribed by Dr. {prescription.doctor?.name ?? 'N/A'} on {formatDate(prescription.date)}
+                  </CardDescription>
+                </div>
+                {/* Placeholder for future actions like PDF download */}
+                {/* <Button variant="outline" size="sm">View Details</Button> */}
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3">
+              <h4 className="text-sm font-semibold mb-2">Medications:</h4>
+              {/* Use the extracted MedicationList component */}
+              <MedicationList 
+                prescription={prescription} 
+                loggingMedicationId={loggingMedicationId} 
+                handleLogDose={handleLogDose} 
+              />
+              
+              {/* Use the extracted Alert components */}
+              <LogSuccessAlert message={logSuccessMessage} prescription={prescription} />
+              <LogErrorAlert error={logError} prescription={prescription} loggingMedicationId={loggingMedicationId} />
+
+              {prescription.notes && (
+                <div className="pt-2 border-t mt-3">
+                  <h4 className="text-sm font-semibold mb-1">Doctor's Notes:</h4>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{prescription.notes}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
+  // Helper function to render adherence history content
+  const renderAdherenceHistoryContent = () => {
+    if (historyLoading) {
+      return (
+        <div className="flex items-center justify-center p-6">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <span className="ml-2 text-muted-foreground">Loading history...</span>
+        </div>
+      );
+    }
+  
+    if (historyError) {
+      return (
+        <div className="p-6">
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>Error Loading History</AlertTitle>
+            <AlertDescription>{historyError}</AlertDescription>
+          </Alert>
+        </div>
+      );
+    }
+  
+    if (adherenceLogs.length === 0) {
+      return (
+        <p className="text-center text-muted-foreground p-6">No medication logs found yet.</p>
+      );
+    }
+  
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Medication</TableHead>
+            <TableHead className="hidden sm:table-cell">Dosage</TableHead>
+            <TableHead className="text-right">Logged At</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {adherenceLogs.map((log) => (
+            <TableRow key={log.id} className="hover:bg-muted/50 text-sm">
+              <TableCell className="font-medium">{log.medication?.name ?? 'N/A'}</TableCell>
+              <TableCell className="hidden sm:table-cell text-muted-foreground text-xs">
+                {log.medication?.dosage ?? 'N/A'}
+              </TableCell>
+              <TableCell className="text-right text-xs">{formatDateTime(log.takenAt)}</TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    );
   };
 
   return (
@@ -343,20 +674,31 @@ const PatientDashboard: FC = () => {
             </CardContent>
           </Card>
 
-          <Card className="border-border/30 bg-muted/50 opacity-80 cursor-not-allowed">
-            <CardContent className="p-5 flex flex-col items-center justify-center space-y-2 text-center min-h-[150px]">
-              <div className="p-3 rounded-full bg-muted text-muted-foreground ring-1 ring-border">
-                <BookHeart className="h-5 w-5" />
-              </div>
-              <span className="font-semibold text-base text-muted-foreground">Update History</span>
-              <p className="text-xs text-muted-foreground">Feature coming soon</p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
+      <Card className="border-border/30 bg-muted/50 opacity-80 cursor-not-allowed">
+        <CardContent className="p-5 flex flex-col items-center justify-center space-y-2 text-center min-h-[150px]">
+          <div className="p-3 rounded-full bg-muted text-muted-foreground ring-1 ring-border">
+            <BookHeart className="h-5 w-5" />
+          </div>
+          <span className="font-semibold text-base text-muted-foreground">Update History</span>
+          <p className="text-xs text-muted-foreground">Feature coming soon</p>
+        </CardContent>
+      </Card>
+    </div>
+  </div>
 
-      {/* Upload Prescription Section */}
-      <Card className="shadow-sm"> {/* Added shadow */}
+  {/* Digital Prescriptions Section */}
+  <Card className="shadow-sm">
+    <CardHeader>
+      <CardTitle className="text-xl">My Digital Prescriptions</CardTitle>
+      <CardDescription>Prescriptions created digitally by your doctors.</CardDescription>
+    </CardHeader>
+    <CardContent>
+      {renderDigitalPrescriptions()}
+    </CardContent>
+  </Card>
+
+  {/* Upload Prescription Section */}
+  <Card className="shadow-sm"> {/* Added shadow */}
         <CardHeader>
           <CardTitle className="text-xl">Upload Prescription File</CardTitle> {/* Adjusted size */}
           <CardDescription>
@@ -370,7 +712,7 @@ const PatientDashboard: FC = () => {
               <Alert variant={uploadError ? "destructive" : "default"} className={uploadSuccess ? "bg-green-50 dark:bg-green-900/30 border-green-200 dark:border-green-700 text-green-800 dark:text-green-200" : ""}>
                 <AlertCircle className="h-4 w-4" />
                 <AlertTitle>{uploadError ? "Upload Failed" : "Upload Successful"}</AlertTitle>
-                <AlertDescription>{uploadError || uploadSuccess}</AlertDescription>
+                <AlertDescription>{uploadError ?? uploadSuccess}</AlertDescription>
               </Alert>
             )}
             {/* Form Fields */}
@@ -424,62 +766,53 @@ const PatientDashboard: FC = () => {
           <CardDescription>View and manage your uploaded prescription files.</CardDescription>
         </CardHeader>
         <CardContent className="p-0"> {/* Remove padding for full-width table */}
-          {/* Conditional rendering inside CardContent */}
-          {listLoading ? (
-            <div className="flex items-center justify-center p-6">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              <span className="ml-2 text-muted-foreground">Loading uploads...</span>
-            </div>
-          ) : listError ? (
-            <div className="p-6"> {/* Add padding for error message */}
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Error Loading List</AlertTitle>
-                <AlertDescription>{listError}</AlertDescription>
-              </Alert>
-            </div>
-          ) : uploadedPrescriptions.length === 0 ? (
-            <p className="text-center text-muted-foreground p-6">No prescriptions uploaded yet.</p>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-[40%]">Filename</TableHead> {/* Adjusted width */}
-                  <TableHead>Notes</TableHead>
-                  <TableHead className="hidden sm:table-cell">Uploaded</TableHead> {/* Hide on small screens */}
-                  <TableHead className="text-right">Action</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {uploadedPrescriptions.map((prescription) => (
-                  <TableRow key={prescription.id} className="hover:bg-muted/50"> {/* Added hover effect */}
-                    <TableCell className="font-medium truncate max-w-xs">{prescription.filename}</TableCell>
-                    <TableCell className="text-muted-foreground text-xs truncate max-w-[200px]"> {/* Smaller text, truncate */}
-                      {prescription.notes || '-'}
-                    </TableCell>
-                    <TableCell className="hidden sm:table-cell text-xs">{formatDate(prescription.uploadDate)}</TableCell> {/* Use formatter */}
-                    <TableCell className="text-right">
-                      <Button
-                        variant="ghost" // Changed to ghost
-                        size="icon" // Changed to icon size
-                        className="text-destructive hover:bg-destructive/10 h-8 w-8" // Adjusted size/styling
-                        onClick={() => handleDelete(prescription.id)}
-                        disabled={deletingId === prescription.id}
-                        aria-label="Delete uploaded prescription"
-                      >
-                        {deletingId === prescription.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Trash2 className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
+          {/* Render uploaded prescriptions content */}
+          {renderUploadedPrescriptionsContent({
+            listLoading,
+            listError,
+            uploadedPrescriptions,
+            deletingId,
+            formatDate,
+            handleDelete,
+          })}
         </CardContent>
+      </Card>
+
+      {/* Adherence History Section */}
+      <Card className="shadow-sm">
+        <CardHeader>
+          <CardTitle className="text-xl">Medication Log History</CardTitle>
+          <CardDescription>Your recent medication intake logs.</CardDescription>
+        </CardHeader>
+        <CardContent className="p-0">
+          {renderAdherenceHistoryContent()}
+        </CardContent>
+        {/* Pagination for History */}
+        {historyPagination.totalPages > 1 && (
+          <CardFooter className="flex justify-between items-center border-t px-6 py-3">
+            <span className="text-xs text-muted-foreground">
+              Page {historyPagination.page} of {historyPagination.totalPages} ({historyPagination.total} logs)
+            </span>
+            <div className="space-x-2">
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleHistoryPageChange(historyPagination.page - 1)}
+                disabled={historyPagination.page <= 1 || historyLoading}
+              >
+                Previous
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => handleHistoryPageChange(historyPagination.page + 1)}
+                disabled={historyPagination.page >= historyPagination.totalPages || historyLoading}
+              >
+                Next
+              </Button>
+            </div>
+          </CardFooter>
+        )}
       </Card>
 
       {/* Footer Actions */}
@@ -498,5 +831,98 @@ const PatientDashboard: FC = () => {
     </div>
   );
 };
+
+// Define props interface for the helper function
+interface RenderUploadedPrescriptionsProps {
+  listLoading: boolean;
+  listError: string | null;
+  uploadedPrescriptions: UploadedPrescription[];
+  deletingId: string | null;
+  formatDate: (dateString: string) => string;
+  handleDelete: (id: string) => Promise<void>; // <-- Changed to expect Promise<void>
+}
+
+// Helper function to render uploaded prescriptions section content
+const renderUploadedPrescriptionsContent = ({
+  listLoading,
+  listError,
+  uploadedPrescriptions,
+  deletingId,
+  formatDate,
+  handleDelete,
+}: RenderUploadedPrescriptionsProps) => {
+  if (listLoading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <span className="ml-2 text-muted-foreground">Loading uploads...</span>
+      </div>
+    );
+  }
+
+  if (listError) {
+    return (
+      <div className="p-6"> {/* Add padding for error message */}
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error Loading List</AlertTitle>
+          <AlertDescription>{listError}</AlertDescription>
+        </Alert>
+      </div>
+    );
+  }
+
+  if (uploadedPrescriptions.length === 0) {
+    return (
+      <p className="text-center text-muted-foreground p-6">No prescriptions uploaded yet.</p>
+    );
+  }
+
+  return (
+    <Table>
+      <TableHeader>
+        <TableRow>
+          <TableHead className="w-[40%]">Filename</TableHead> {/* Adjusted width */}
+          <TableHead>Notes</TableHead>
+          <TableHead className="hidden sm:table-cell">Uploaded</TableHead> {/* Hide on small screens */}
+          <TableHead className="text-right">Action</TableHead>
+        </TableRow>
+      </TableHeader>
+      <TableBody>
+        {uploadedPrescriptions.map((prescription) => {
+          // Extracted icon logic for the delete button
+          const deleteButtonIcon = deletingId === prescription.id ? (
+            <Loader2 className="h-4 w-4 animate-spin" />
+          ) : (
+            <Trash2 className="h-4 w-4" />
+          );
+
+          return (
+            <TableRow key={prescription.id} className="hover:bg-muted/50"> {/* Added hover effect */}
+              <TableCell className="font-medium truncate max-w-xs">{prescription.filename}</TableCell>
+              <TableCell className="text-muted-foreground text-xs truncate max-w-[200px]"> {/* Smaller text, truncate */}
+                {prescription.notes ?? '-'}
+              </TableCell>
+              <TableCell className="hidden sm:table-cell text-xs">{formatDate(prescription.uploadDate)}</TableCell> {/* Use formatter */}
+              <TableCell className="text-right">
+                <Button
+                  variant="ghost" // Changed to ghost
+                  size="icon" // Changed to icon size
+                  className="text-destructive hover:bg-destructive/10 h-8 w-8" // Adjusted size/styling
+                  onClick={() => handleDelete(prescription.id)}
+                  disabled={deletingId === prescription.id}
+                  aria-label="Delete uploaded prescription"
+                >
+                  {deleteButtonIcon} {/* Use the extracted variable */}
+                </Button>
+              </TableCell>
+            </TableRow>
+          );
+        })}
+      </TableBody>
+    </Table>
+  );
+};
+
 
 export default PatientDashboard;

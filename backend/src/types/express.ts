@@ -1,18 +1,16 @@
-import { Request } from 'express';
+// Remove AuthRequest interface
 
-export interface AuthRequest extends Request {
-  user?: {
-    id: string;
-    email: string;
-    role?: 'patient' | 'doctor';
-  };
-  id?: string; // Added for request ID tracking
-}
-
-// Extend base Request to include request ID
-declare module 'express' {
-  interface Request {
-    id?: string;
+// Extend base Request to include request ID and user
+declare global {
+  namespace Express {
+    interface Request {
+      id?: string; // For request ID tracking
+      user?: {
+        id: string;
+        email: string;
+        type: 'patient' | 'doctor'; // Use 'type' consistent with authenticate middleware
+      };
+    }
   }
 }
 

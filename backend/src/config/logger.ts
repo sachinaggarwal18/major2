@@ -48,7 +48,7 @@ const requestSerializer = (req: any) => {
 const responseSerializer = (res: any) => {
   return {
     statusCode: res.statusCode,
-    headers: res.getHeaders?.() || res.headers
+    headers: res.getHeaders?.() ?? res.headers
   };
 };
 
@@ -122,7 +122,7 @@ const logger = pino({
 export const requestLoggingMiddleware = () => {
   return (req: any, res: any, next: any) => {
     // Add unique request ID
-    req.id = req.headers['x-request-id'] || randomUUID();
+    req.id = req.headers['x-request-id'] ?? randomUUID();
     res.setHeader('x-request-id', req.id);
 
     // Log request

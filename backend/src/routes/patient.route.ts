@@ -3,12 +3,11 @@ import { body, validationResult } from 'express-validator';
 import argon2 from 'argon2';
 import jwt from 'jsonwebtoken';
 import { authenticate, isPatient, isDoctor } from '../middleware/auth';
-import { AuthRequest, PatientSignupRequest, LoginRequest } from '../types/express';
+import { PatientSignupRequest, LoginRequest } from '../types/express'; // Removed AuthRequest
 import prisma from '../utils/prisma';
 import { generatePatientId } from '../utils/generateId';
 import upload from '../config/multer'; // Import multer configuration
 import fs from 'fs'; // Import fs for file deletion
-import path from 'path'; // Import path for file deletion
 
 const router = express.Router();
 
@@ -158,7 +157,7 @@ router.post(
 );
 
 // ==================== Get Patient Profile ====================
-router.get('/profile', authenticate, isPatient, async (req: AuthRequest, res: Response): Promise<void> => {
+router.get('/profile', authenticate, isPatient, async (req: Request, res: Response): Promise<void> => {
   try {
     if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
@@ -213,7 +212,7 @@ router.put(
     body('address').optional().trim().notEmpty().withMessage('Address cannot be empty'),
     body('medicalHistory').optional(),
   ],
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
@@ -289,7 +288,7 @@ router.put(
       .isLength({ min: 5 })
       .withMessage('New password must be at least 5 characters long')
   ],
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       res.status(400).json({ errors: errors.array() });
@@ -349,7 +348,7 @@ router.delete(
   '/account',
   authenticate,
   isPatient,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
       return;
@@ -482,7 +481,7 @@ router.post(
   authenticate,
   isPatient,
   upload.single('prescriptionFile'), // Use multer middleware for single file upload named 'prescriptionFile'
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
       return;
@@ -501,7 +500,7 @@ router.post(
           filename: req.file.originalname,
           storagePath: req.file.path, // Store the path where multer saved the file
           fileType: req.file.mimetype,
-          notes: notes || null,
+          notes: notes ?? null,
         },
       });
 
@@ -525,7 +524,7 @@ router.get(
   '/uploaded-prescriptions',
   authenticate,
   isPatient,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
       return;
@@ -549,7 +548,7 @@ router.delete(
   '/uploaded-prescriptions/:id',
   authenticate,
   isPatient,
-  async (req: AuthRequest, res: Response): Promise<void> => {
+  async (req: Request, res: Response): Promise<void> => {
     if (!req.user?.id) {
       res.status(401).json({ message: 'Authentication required' });
       return;
