@@ -127,8 +127,17 @@ export const prescriptionService = {
   createPrescription: (data: PrescriptionCreateRequest, token: string): Promise<{ message: string, prescriptionId: string, patientShortId: string }> => 
     apiCall<PrescriptionCreateRequest, { message: string, prescriptionId: string, patientShortId: string }>('/prescriptions/create', 'POST', data, token),
 
-  getAllPrescriptions: (token: string): Promise<Prescription[]> => 
-    apiCall<undefined, Prescription[]>('/prescriptions', 'GET', undefined, token),
+  getAllPrescriptions: (token: string, params?: Record<string, string>): Promise<Prescription[]> => {
+    let endpoint = '/prescriptions';
+    if (params) {
+      const queryParams = new URLSearchParams(params);
+      const queryString = queryParams.toString();
+      if (queryString) {
+        endpoint += `?${queryString}`;
+      }
+    }
+    return apiCall<undefined, Prescription[]>(endpoint, 'GET', undefined, token);
+  },
 
   getPrescriptionById: (id: string, token: string): Promise<Prescription> => 
     apiCall<undefined, Prescription>(`/prescriptions/${id}`, 'GET', undefined, token),

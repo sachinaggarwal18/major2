@@ -11,6 +11,7 @@ import doctorRoutes from './routes/doctor.route';
 import prescriptionRoutes from './routes/prescription.route';
 import medicationRoutes from './routes/medication.route';
 import adherenceRoutes from './routes/adherence.route'; // Import adherence routes
+import { scheduleRefillAlertUpdater } from './jobs/refillAlertUpdater'; // Import the scheduler
 
 // Initialize environment variables
 dotenv.config();
@@ -94,6 +95,8 @@ const PORT: number = parseInt(process.env.PORT ?? '8000', 10);
 
 const server = app.listen(PORT, () => {
   logger.info({ port: PORT }, `Server running at http://localhost:${PORT}`);
+  // Schedule the cron job after server starts
+  scheduleRefillAlertUpdater(); 
 });
 
 // Graceful shutdown handler

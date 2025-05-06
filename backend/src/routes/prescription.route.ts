@@ -3,6 +3,7 @@ import { body, validationResult } from 'express-validator';
 import { authenticate, isDoctor } from '../middleware/auth';
 import { PrescriptionCreateRequest } from '../types/express';
 import prisma from '../utils/prisma';
+import { getLatestEstimatedEndDateForPrescription } from '../utils/dateUtils'; // Import the new utility
 
 // Define medication interface to prevent 'any' type
 interface MedicationInput {
@@ -10,6 +11,7 @@ interface MedicationInput {
   dosage: string;
   frequency: string;
   duration: string;
+  notes?: string; // Optional notes for medication
 }
 
 const router = express.Router();
@@ -27,6 +29,7 @@ router.post(
     body('medications.*.dosage').notEmpty().withMessage('Medication dosage is required'),
     body('medications.*.frequency').notEmpty().withMessage('Medication frequency is required'),
     body('medications.*.duration').notEmpty().withMessage('Medication duration is required'),
+    body('date').optional().isISO8601().toDate().withMessage('Invalid date format'),
   ],
   async (req: Request<Record<string, never>, unknown, PrescriptionCreateRequest>, res: Response): Promise<void> => {
     const errors = validationResult(req);
@@ -35,7 +38,7 @@ router.post(
       return;
     }
 
-    const { patientShortId, diagnosis, medications, notes, date } = req.body;
+    const { patientShortId, diagnosis, medications, notes, date: prescriptionDateInput } = req.body;
     const doctorId = (req as Request).user?.id;
 
     if (!doctorId) {
@@ -60,28 +63,51 @@ router.post(
         return;
       }
 
+      const prescriptionDate = prescriptionDateInput ? new Date(prescriptionDateInput) : new Date();
+      const estimatedEndDate = getLatestEstimatedEndDateForPrescription(prescriptionDate, medications);
+
       const newPrescription = await prisma.prescription.create({
         data: {
-          patientId: patient.id, // Use the actual UUID internally
+          patientId: patient.id,
           doctorId,
-          date: date || new Date(),
+          date: prescriptionDate,
           diagnosis,
           notes,
+          estimatedEndDate, // Store the calculated end date
+          needsRefillSoon: false, // Default to false
           medications: {
-            create: medications.map(med => ({
+            create: medications.map((med: MedicationInput) => ({
               name: med.name,
               dosage: med.dosage,
               frequency: med.frequency,
-              duration: med.duration
+              duration: med.duration,
+              notes: med.notes,
             }))
           }
+        },
+        include: { // Include all necessary fields for the response
+          patient: {
+            select: {
+              id: true,
+              shortId: true,
+              name: true,
+            }
+          },
+          doctor: {
+            select: {
+              id: true,
+              shortId: true,
+              name: true,
+              specialization: true,
+            }
+          },
+          medications: true,
         }
       });
 
       res.status(201).json({
         message: 'Prescription created successfully',
-        prescriptionId: newPrescription.id,
-        patientShortId: patientShortId // Return the shortId for reference
+        prescription: newPrescription // Return the full new prescription object
       });
     } catch (error) {
       console.error('Error creating prescription:', error);
@@ -90,94 +116,113 @@ router.post(
   }
 );
 
-// ==================== Get All Prescriptions ====================
+// ==================== Get All Prescriptions (with filtering and sorting for Doctors) ====================
+// This route now implicitly includes estimatedEndDate and needsRefillSoon
+// as they are part of the Prescription model.
 router.get('/', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = req.user?.id;
     const userRole = req.user?.type;
-    
+
     if (!userId || !userRole) {
       res.status(401).json({ message: 'Authentication required' });
       return;
     }
-    
+
+    const {
+      patientName,
+      patientShortId,
+      diagnosis,
+      dateFrom,
+      dateTo,
+      sortBy, // 'date', 'patientName'
+      sortOrder, // 'asc', 'desc'
+    } = req.query;
+
     let prescriptions;
-    
-    if (userRole === 'doctor') {
-      prescriptions = await prisma.prescription.findMany({
-        where: { doctorId: userId },
-        include: {
-          patient: {
-            select: {
-              id: true,
-              shortId: true,
-              name: true,
-              age: true,
-              gender: true,
-              email: true,
-              phoneNumber: true,
-              address: true,
-              medicalHistory: true
-            }
-          },
-          doctor: {
-            select: {
-              id: true,
-              shortId: true,
-              name: true,
-              specialization: true,
-              licenseNumber: true,
-              phoneNumber: true,
-              hospitalAffiliation: true
-            }
-          },
-          medications: true
+    const includeOptions = {
+      patient: {
+        select: {
+          id: true,
+          shortId: true,
+          name: true,
+          age: true,
+          gender: true,
         },
-        orderBy: { createdAt: 'desc' }
+      },
+      doctor: {
+        select: {
+          id: true,
+          shortId: true,
+          name: true,
+          specialization: true,
+        },
+      },
+      medications: true,
+    };
+
+    if (userRole === 'doctor') {
+      const whereClause: any = { doctorId: userId };
+      if (patientName) {
+        whereClause.patient = {
+          name: { contains: patientName as string, mode: 'insensitive' },
+        };
+      }
+      if (patientShortId) {
+        whereClause.patient = {
+          ...(whereClause.patient ?? {}), // Preserve patientName filter if present
+          shortId: patientShortId as string,
+        };
+      }
+      if (diagnosis) {
+        whereClause.diagnosis = { contains: diagnosis as string, mode: 'insensitive' };
+      }
+      if (dateFrom && dateTo) {
+        whereClause.date = { gte: new Date(dateFrom as string), lte: new Date(dateTo as string) };
+      } else if (dateFrom) {
+        whereClause.date = { gte: new Date(dateFrom as string) };
+      } else if (dateTo) {
+        whereClause.date = { lte: new Date(dateTo as string) };
+      }
+
+      let orderByClause: any = { date: 'desc' }; // Default sort
+      if (sortBy === 'date') {
+        orderByClause = { date: sortOrder === 'asc' ? 'asc' : 'desc' };
+      } else if (sortBy === 'patientName') {
+        orderByClause = { patient: { name: sortOrder === 'asc' ? 'asc' : 'desc' } };
+      }
+      // Add more sortBy options as needed, e.g., by diagnosis
+
+      prescriptions = await prisma.prescription.findMany({
+        where: whereClause,
+        include: includeOptions,
+        orderBy: orderByClause,
       });
     } else if (userRole === 'patient') {
+      // Patients get their prescriptions, sorted by date, no advanced filtering from query params
       prescriptions = await prisma.prescription.findMany({
         where: { patientId: userId },
-        include: {
-          doctor: {
-            select: {
-              id: true,
-              name: true,
-              specialization: true,
-              licenseNumber: true,
-              phoneNumber: true,
-              hospitalAffiliation: true
-            }
-          },
-          patient: {
-            select: {
-              id: true,
-              name: true,
-              age: true,
-              gender: true,
-              email: true,
-              phoneNumber: true,
-              address: true,
-              medicalHistory: true
-            }
-          },
-          medications: true
-        },
-        orderBy: { createdAt: 'desc' }
+        include: includeOptions,
+        orderBy: { date: 'desc' }, // Changed from createdAt to date for consistency
       });
     } else {
       res.status(403).json({ message: 'Insufficient permissions' });
       return;
     }
-    
+
     res.status(200).json(prescriptions);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Server Error' });
+    console.error('Error fetching prescriptions:', error);
+    if (error instanceof Error && (error.message.includes('Invalid `prisma.prescription.findMany()` invocation') || error.message.includes('Invalid date'))) {
+      res.status(400).json({ message: 'Invalid filter parameters. Please check date formats or other inputs.' });
+    } else {
+      res.status(500).json({ message: 'Server Error' });
+    }
   }
 });
 
 // ==================== Get Prescription by ID ====================
+// This route now implicitly includes estimatedEndDate and needsRefillSoon
 router.get('/:id', authenticate, async (req: Request, res: Response): Promise<void> => {
   try {
     const prescription = await prisma.prescription.findUnique({
@@ -186,15 +231,25 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
         patient: {
           select: {
             id: true,
+            shortId: true,
             name: true,
-            email: true
+            email: true, // Full details for single view
+            age: true,
+            gender: true,
+            phoneNumber: true,
+            address: true,
+            medicalHistory: true,
           }
         },
         doctor: {
           select: {
             id: true,
+            shortId: true,
             name: true,
-            specialization: true
+            specialization: true,
+            licenseNumber: true,
+            phoneNumber: true,
+            // hospitalAffiliation: true // Add if available and needed
           }
         },
         medications: true
@@ -206,7 +261,6 @@ router.get('/:id', authenticate, async (req: Request, res: Response): Promise<vo
       return;
     }
     
-    // Check if the user is authorized to view this prescription
     const userId = req.user?.id;
     const userRole = req.user?.type;
     
@@ -239,6 +293,7 @@ router.put(
     body('medications.*.frequency').optional().notEmpty().withMessage('Medication frequency is required'),
     body('medications.*.duration').optional().notEmpty().withMessage('Medication duration is required'),
     body('notes').optional(),
+    body('date').optional().isISO8601().toDate().withMessage('Invalid date format'),
   ],
   async (req: Request, res: Response): Promise<void> => {
     const errors = validationResult(req);
@@ -248,7 +303,7 @@ router.put(
     }
 
     const { id } = req.params;
-    const { diagnosis, medications, notes } = req.body;
+    const { diagnosis, medications, notes, date: prescriptionDateInput } = req.body;
     const doctorId = req.user?.id;
 
     if (!doctorId) {
@@ -257,79 +312,59 @@ router.put(
     }
 
     try {
-      // Verify prescription exists and belongs to the doctor
-      const prescription = await prisma.prescription.findUnique({
+      const existingPrescription = await prisma.prescription.findUnique({
         where: { id },
-        include: { medications: true }
       });
 
-      if (!prescription) {
+      if (!existingPrescription) {
         res.status(404).json({ message: 'Prescription not found' });
         return;
       }
 
-      if (prescription.doctorId !== doctorId) {
+      if (existingPrescription.doctorId !== doctorId) {
         res.status(403).json({ message: 'Not authorized to update this prescription' });
         return;
       }
 
-      // Update the prescription
+      const prescriptionDate = prescriptionDateInput ? new Date(prescriptionDateInput) : existingPrescription.date;
+      // Recalculate estimatedEndDate if medications or date changes
+      const medicationsForEndDateCalc = medications ?? (await prisma.medication.findMany({ where: { prescriptionId: id } }));
+      const estimatedEndDate = getLatestEstimatedEndDateForPrescription(prescriptionDate, medicationsForEndDateCalc);
+
       await prisma.$transaction(async (tx) => {
-        // Update basic prescription data
         await tx.prescription.update({
           where: { id },
           data: {
             ...(diagnosis && { diagnosis }),
-            ...(notes !== undefined && { notes })
+            ...(notes !== undefined && { notes }),
+            ...(prescriptionDateInput && { date: prescriptionDate }),
+            estimatedEndDate, // Update estimatedEndDate
+            needsRefillSoon: false, // Reset flag for cron job to re-evaluate
           }
         });
 
-        // If medications are provided, update them
         if (medications && medications.length > 0) {
-          // Delete existing medications
           await tx.medication.deleteMany({
             where: { prescriptionId: id }
           });
-
-          // Create new medications
           await tx.medication.createMany({
             data: medications.map((med: MedicationInput) => ({
               name: med.name,
               dosage: med.dosage,
               frequency: med.frequency,
               duration: med.duration,
+              notes: med.notes,
               prescriptionId: id
             }))
           });
         }
       });
 
-      // Get the updated prescription
       const updatedPrescription = await prisma.prescription.findUnique({
         where: { id },
         include: {
-          patient: {
-            select: {
-              id: true,
-              name: true,
-              age: true,
-              gender: true,
-              email: true,
-              phoneNumber: true,
-              address: true,
-              medicalHistory: true
-            }
-          },
-          doctor: {
-            select: {
-              id: true,
-              name: true,
-              specialization: true,
-              licenseNumber: true,
-              phoneNumber: true,
-              hospitalAffiliation: true
-            }
-          },
+          patient: { select: { id: true, shortId: true, name: true } },
+          doctor: { select: { id: true, shortId: true, name: true, specialization: true } },
           medications: true
         }
       });
@@ -360,7 +395,6 @@ router.delete(
     }
 
     try {
-      // Verify prescription exists and belongs to the doctor
       const prescription = await prisma.prescription.findUnique({
         where: { id }
       });
@@ -375,14 +409,16 @@ router.delete(
         return;
       }
 
-      // Delete the prescription and related medications
+      // Adherence logs related to this prescription also need to be handled or deleted.
+      // For now, we'll cascade delete medications, which should also handle adherence logs if schema is set up for it.
+      // If not, explicit deletion of adherence logs might be needed.
       await prisma.$transaction(async (tx) => {
-        // Delete medications first (due to foreign key constraints)
+         await tx.medicationAdherenceLog.deleteMany({ // Explicitly delete related adherence logs
+          where: { prescriptionId: id }
+        });
         await tx.medication.deleteMany({
           where: { prescriptionId: id }
         });
-
-        // Delete the prescription
         await tx.prescription.delete({
           where: { id }
         });
@@ -397,6 +433,7 @@ router.delete(
 );
 
 // ==================== Filter Prescriptions ====================
+// This route now implicitly includes estimatedEndDate and needsRefillSoon
 router.get(
   '/filter',
   authenticate,
@@ -419,7 +456,6 @@ router.get(
 
       let whereClause: any = {};
 
-      // Base filter by user role
       if (userRole === 'doctor') {
         whereClause.doctorId = userId;
       } else if (userRole === 'patient') {
@@ -429,80 +465,43 @@ router.get(
         return;
       }
 
-      // Add date range filter
       if (startDate && endDate) {
         whereClause.date = {
           gte: new Date(startDate as string),
           lte: new Date(endDate as string)
         };
       } else if (startDate) {
-        whereClause.date = {
-          gte: new Date(startDate as string)
-        };
+        whereClause.date = { gte: new Date(startDate as string) };
       } else if (endDate) {
-        whereClause.date = {
-          lte: new Date(endDate as string)
-        };
+        whereClause.date = { lte: new Date(endDate as string) };
       }
 
-      // Add diagnosis filter (partial match)
       if (diagnosis) {
-        whereClause.diagnosis = {
-          contains: diagnosis as string,
-          mode: 'insensitive'
-        };
+        whereClause.diagnosis = { contains: diagnosis as string, mode: 'insensitive' };
       }
+      
+      const includeOptions = {
+        patient: { select: { id: true, shortId: true, name: true } },
+        doctor: { select: { id: true, shortId: true, name: true, specialization: true } },
+        medications: true
+      };
 
-      // Filter by medication name if specified
       let prescriptions;
       if (medicationName) {
         prescriptions = await prisma.prescription.findMany({
           where: {
             ...whereClause,
             medications: {
-              some: {
-                name: {
-                  contains: medicationName as string,
-                  mode: 'insensitive'
-                }
-              }
+              some: { name: { contains: medicationName as string, mode: 'insensitive' } }
             }
           },
-          include: {
-            patient: {
-              select: {
-                name: true,
-                email: true
-              }
-            },
-            doctor: {
-              select: {
-                name: true,
-                specialization: true
-              }
-            },
-            medications: true
-          },
+          include: includeOptions,
           orderBy: { date: 'desc' }
         });
       } else {
         prescriptions = await prisma.prescription.findMany({
           where: whereClause,
-          include: {
-            patient: {
-              select: {
-                name: true,
-                email: true
-              }
-            },
-            doctor: {
-              select: {
-                name: true,
-                specialization: true
-              }
-            },
-            medications: true
-          },
+          include: includeOptions,
           orderBy: { date: 'desc' }
         });
       }
@@ -516,12 +515,13 @@ router.get(
 );
 
 // ==================== Get Patient Prescriptions by Doctor ====================
+// This route now implicitly includes estimatedEndDate and needsRefillSoon
 router.get(
   '/patient/:patientId',
   authenticate,
   isDoctor,
   async (req: Request, res: Response): Promise<void> => {
-    const { patientId } = req.params;
+    const { patientId } = req.params; // This is patient's actual ID (cuid)
     const doctorId = req.user?.id;
 
     if (!doctorId) {
@@ -530,25 +530,15 @@ router.get(
     }
 
     try {
-      // Check if patient exists
-      const patient = await prisma.patient.findUnique({
-        where: { id: patientId }
-      });
-
+      const patient = await prisma.patient.findUnique({ where: { id: patientId } });
       if (!patient) {
         res.status(404).json({ message: 'Patient not found' });
         return;
       }
 
-      // Get all prescriptions for this patient by the authenticated doctor
       const prescriptions = await prisma.prescription.findMany({
-        where: {
-          patientId,
-          doctorId
-        },
-        include: {
-          medications: true
-        },
+        where: { patientId, doctorId },
+        include: { medications: true }, // Add other includes if needed for this specific view
         orderBy: { date: 'desc' }
       });
 
@@ -561,6 +551,7 @@ router.get(
 );
 
 // ==================== Get Recent Prescriptions ====================
+// This route now implicitly includes estimatedEndDate and needsRefillSoon
 router.get(
   '/recent',
   authenticate,
@@ -568,7 +559,7 @@ router.get(
     try {
       const userId = req.user?.id;
       const userRole = req.user?.type;
-      const limit = parseInt(req.query.limit as string) || 5; // Default to 5 recent prescriptions
+      const limit = parseInt(req.query.limit as string) || 5;
       
       if (!userId || !userRole) {
         res.status(401).json({ message: 'Authentication required' });
@@ -576,12 +567,9 @@ router.get(
       }
       
       let whereClause: any = {};
-      
-      if (userRole === 'doctor') {
-        whereClause.doctorId = userId;
-      } else if (userRole === 'patient') {
-        whereClause.patientId = userId;
-      } else {
+      if (userRole === 'doctor') whereClause.doctorId = userId;
+      else if (userRole === 'patient') whereClause.patientId = userId;
+      else {
         res.status(403).json({ message: 'Insufficient permissions' });
         return;
       }
@@ -589,18 +577,8 @@ router.get(
       const prescriptions = await prisma.prescription.findMany({
         where: whereClause,
         include: {
-          patient: {
-            select: {
-              name: true,
-              email: true
-            }
-          },
-          doctor: {
-            select: {
-              name: true,
-              specialization: true
-            }
-          },
+          patient: { select: { id: true, shortId: true, name: true } },
+          doctor: { select: { id: true, shortId: true, name: true, specialization: true } },
           medications: true
         },
         orderBy: { date: 'desc' },
@@ -629,66 +607,32 @@ router.get(
     }
 
     try {
-      // Get count of prescriptions by this doctor
-      const totalPrescriptions = await prisma.prescription.count({
-        where: { doctorId }
-      });
-
-      // Get count of unique patients treated by this doctor
+      const totalPrescriptions = await prisma.prescription.count({ where: { doctorId } });
       const uniquePatients = await prisma.prescription.findMany({
         where: { doctorId },
         select: { patientId: true },
         distinct: ['patientId']
       });
-
-      // Get most common diagnoses
       const diagnoses = await prisma.prescription.groupBy({
         by: ['diagnosis'],
         where: { doctorId },
         _count: true,
-        orderBy: {
-          _count: {
-            diagnosis: 'desc'
-          }
-        },
+        orderBy: { _count: { diagnosis: 'desc' } },
         take: 5
       });
-
-      // Get most prescribed medications
-      const medications = await prisma.medication.findMany({
-        where: {
-          prescription: {
-            doctorId
-          }
-        },
-        select: {
-          name: true,
-        }
+      const medicationCountsResult = await prisma.medication.groupBy({
+        by: ['name'],
+        where: { prescription: { doctorId } },
+        _count: { name: true },
+        orderBy: { _count: { name: 'desc' } },
+        take: 5,
       });
-
-      // Count medication occurrences
-      const medicationCounts: Record<string, number> = {};
-      medications.forEach(med => {
-        if (medicationCounts[med.name]) {
-          medicationCounts[med.name]++;
-        } else {
-          medicationCounts[med.name] = 1;
-        }
-      });
-
-      // Convert to array and sort
-      const topMedications = Object.entries(medicationCounts)
-        .map(([name, count]) => ({ name, count }))
-        .sort((a, b) => b.count - a.count)
-        .slice(0, 5);
+      const topMedications = medicationCountsResult.map(m => ({ name: m.name, count: m._count.name }));
 
       res.status(200).json({
         totalPrescriptions,
         uniquePatientCount: uniquePatients.length,
-        topDiagnoses: diagnoses.map(d => ({ 
-          diagnosis: d.diagnosis, 
-          count: d._count 
-        })),
+        topDiagnoses: diagnoses.map(d => ({ diagnosis: d.diagnosis, count: d._count })),
         topMedications
       });
     } catch (error) {

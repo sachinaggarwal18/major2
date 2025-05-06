@@ -47,6 +47,8 @@ export interface Prescription {
   notes?: string;
   createdAt: string;
   updatedAt: string;
+  estimatedEndDate?: string | null; // Added
+  needsRefillSoon?: boolean;      // Added
 }
 
 export interface AuthState {
